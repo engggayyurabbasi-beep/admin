@@ -1,3 +1,4 @@
+import 'dashboard_page.dart';
 import 'package:flutter/material.dart';
 
 class AdminHomePage extends StatelessWidget {
@@ -420,12 +421,22 @@ class AdminHomePage extends StatelessWidget {
   }
 
   void _openPage(BuildContext context, String title) {
-    // अगले चरण में यहाँ आपके सभी अलग-अलग pages connect किए जाएंगे.
-    // उदाहरण:
-    // Navigator.push(
-    //   context,
-    //   MaterialPageRoute(builder: (_) => const ProductsPage()),
-    // );
+    if (title == 'Dashboard') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const DashboardPage(),
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$title page will be connected next.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Widget _buildAdminFooter(BuildContext context) {
