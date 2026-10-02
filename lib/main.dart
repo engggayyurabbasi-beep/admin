@@ -479,6 +479,7 @@ class Channel extends StatelessWidget{
       Text(d,style:const TextStyle(color:Colors.grey,fontSize:11))]));
 }
 class ChartPainter extends CustomPainter{
+  const ChartPainter();
   @override void paint(Canvas c,Size s){
     final g=Paint()..color=const Color(0xFFE7E7EC)..strokeWidth=1;
     for(int i=1;i<5;i++){final y=s.height*i/5;c.drawLine(Offset(0,y),Offset(s.width,y),g);}
