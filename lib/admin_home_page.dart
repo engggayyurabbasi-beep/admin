@@ -1,4 +1,5 @@
 import 'dashboard_page.dart';
+import 'add_product_page.dart';
 import 'package:flutter/material.dart';
 
 class AdminHomePage extends StatelessWidget {
@@ -426,6 +427,16 @@ class AdminHomePage extends StatelessWidget {
         context,
         MaterialPageRoute(
           builder: (context) => const DashboardPage(),
+        ),
+      );
+      return;
+    }
+
+    if (title == 'Products') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const AddProductPage(),
         ),
       );
       return;
