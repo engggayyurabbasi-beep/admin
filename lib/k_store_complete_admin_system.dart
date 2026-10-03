@@ -3057,47 +3057,299 @@ class _WalletRewardModuleState extends State<WalletRewardModule>{
   ]));
 }
 
+// Replace InventoryModule and MarketingModule in
+// lib/k_store_complete_admin_system.dart
+//
+// This version avoids map<Widget>(...).toList() parenthesis/type issues
+// by explicitly building List<Widget> with for loops.
+
 class InventoryModule extends StatefulWidget {
-  const InventoryModule({super.key, required this.data}); final KStoreAdminData data;
-  @override State<InventoryModule> createState()=>_InventoryModuleState();
-}
-class _InventoryModuleState extends State<InventoryModule>{
-  final rows=[['SKU001','Slim Trimz Powder','Wellness','124','20','₹270'],['SKU002','Soha Hair Oil 100ml','Hair Care','38','50','₹210'],['SKU003','Kirpilez Tab','Unani','8','25','₹270'],['SKU004','Hanicyst Syrup 500ml','Herbal','72','20','₹599'],['SKU005','Majoan Vajikaran Gold','Wellness','14','10','₹3,200']];
-  String q='';
-  @override Widget build(BuildContext context){final list=rows.where((r)=>r.join(' ').toLowerCase().contains(q.toLowerCase())).toList();return ModuleShell(child:Column(children:[
-    _ModuleHeader(title:'Inventory',subtitle:'Stock levels, low-stock alerts and adjustments',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Stock Adjustment',fields:['SKU / Product','Quantity','Adjustment Type','Reason'])),icon:const Icon(Icons.tune),label:const Text('Adjust Stock'))]),
-    _StatsRow(items:[['Products','${rows.length}',Icons.inventory_2],['Low Stock','${rows.where((r)=>int.parse(r[3])<=int.parse(r[4])).length}',Icons.warning],['Stock Units','256',Icons.warehouse],['Stock Value','₹1.82L',Icons.currency_rupee]]),
-    Padding(padding:const EdgeInsets.all(16),child:TextField(onChanged:(v)=>setState(()=>q=v),decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'Search SKU or product...',border:OutlineInputBorder()))),
-    Expanded(child:ListView(children:list.map<Widget>((r)=>Card(margin:const EdgeInsets.fromLTRB(16,2,16,6),child:ListTile(leading:CircleAvatar(child:Icon(int.parse(r[3])<=int.parse(r[4])?Icons.warning:Icons.inventory)),title:Text('${r[0]} • ${r[1]}'),subtitle:Text('${r[2]} • Reorder at ${r[4]} units'),trailing:Text('${r[3]}\\n${r[5]}',textAlign:TextAlign.right))).toList())),
-  ]));}
+  const InventoryModule({super.key});
+
+  @override
+  State<InventoryModule> createState() => _InventoryModuleState();
 }
 
-class ReportModule extends StatelessWidget {
-  const ReportModule({super.key, required this.data}); final KStoreAdminData data;
-  @override Widget build(BuildContext context)=>ModuleShell(child:ListView(padding:const EdgeInsets.all(16),children:[
-    _ModuleHeader(title:'Reports & Analytics',subtitle:'Business performance and downloadable reports',actions:[OutlinedButton.icon(onPressed:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Report export prepared'))),icon:const Icon(Icons.download),label:const Text('Export'))]),
-    _StatsRow(items:[['Revenue','₹4,82,450',Icons.trending_up],['Orders','486',Icons.shopping_bag],['Customers','312',Icons.people],['AOV','₹993',Icons.receipt_long]]),
-    const SizedBox(height:8),
-    _ReportCard(title:'Sales Report',icon:Icons.bar_chart,items:['Daily sales','Weekly sales','Monthly sales','Top products']),
-    _ReportCard(title:'Customer Report',icon:Icons.people_outline,items:['New customers','Repeat customers','Customer lifetime value','Inactive customers']),
-    _ReportCard(title:'Product Report',icon:Icons.inventory_2_outlined,items:['Best sellers','Low stock','Zero sales','Category performance']),
-    _ReportCard(title:'Finance Report',icon:Icons.account_balance,items:['Payments','Refunds','COD collection','Profit summary']),
-  ]));
+class _InventoryModuleState extends State<InventoryModule> {
+  String q = '';
+
+  final List<List<String>> rows = [
+    ['P001', 'Wheat Atta 10kg', '124', '35', '50', 'Healthy'],
+    ['P002', 'Herbal Hair Oil 200ml', '42', '25', '30', 'Low Stock'],
+    ['P003', 'Slim Trimz Powder', '18', '20', '25', 'Critical'],
+    ['P004', 'Hanicyst Syrup 500ml', '76', '30', '40', 'Healthy'],
+    ['P005', 'Kirpilez Tablets', '9', '15', '20', 'Critical'],
+    ['P006', 'Majoan Vajikaran Gold', '58', '20', '30', 'Healthy'],
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final list = rows
+        .where((r) => r.join(' ').toLowerCase().contains(q.toLowerCase()))
+        .toList();
+
+    final int totalUnits = rows.fold(
+      0,
+      (sum, r) => sum + int.parse(r[3]),
+    );
+
+    final int lowStock = rows.where((r) {
+      return int.parse(r[3]) <= int.parse(r[4]);
+    }).length;
+
+    final List<Widget> cards = [];
+    for (final r in list) {
+      final int stock = int.parse(r[3]);
+      final int reorder = int.parse(r[4]);
+      final bool warning = stock <= reorder;
+
+      cards.add(
+        Card(
+          margin: const EdgeInsets.fromLTRB(16, 2, 16, 6),
+          child: ListTile(
+            leading: CircleAvatar(
+              child: Icon(
+                warning ? Icons.warning : Icons.inventory,
+              ),
+            ),
+            title: Text('${r[0]} • ${r[1]}'),
+            subtitle: Text(
+              '${r[2]} • Reorder at ${r[4]} units',
+            ),
+            trailing: Text(
+              '${r[3]}\n${r[5]}',
+              textAlign: TextAlign.right,
+            ),
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: Text(r[1]),
+                  content: Text(
+                    'SKU: ${r[0]}\n'
+                    'Available stock: ${r[3]} units\n'
+                    'Reorder level: ${r[4]} units\n'
+                    'Status: ${r[5]}',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    return ModuleShell(
+      child: Column(
+        children: [
+          _ModuleHeader(
+            title: 'Inventory',
+            subtitle: 'Stock levels, reorder alerts and inventory control',
+            icon: Icons.inventory_2_outlined,
+            actions: [
+              IconButton(
+                tooltip: 'Add stock',
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => _SimpleFormDialog(
+                      title: 'Add Stock',
+                      fields: const [
+                        'Product / SKU',
+                        'Quantity',
+                        'Supplier',
+                        'Purchase Cost',
+                      ],
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.add_box_outlined),
+              ),
+            ],
+          ),
+          _StatsRow(
+            items: [
+              _ReportCard(
+                'Products',
+                '${rows.length}',
+                Icons.inventory_2_outlined,
+              ),
+              _ReportCard(
+                'Stock Units',
+                '$totalUnits',
+                Icons.warehouse_outlined,
+              ),
+              _ReportCard(
+                'Low Stock',
+                '$lowStock',
+                Icons.warning_amber_outlined,
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: TextField(
+              onChanged: (v) => setState(() => q = v),
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Search product, SKU or status',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              children: cards,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class MarketingModule extends StatefulWidget {
-  const MarketingModule({super.key, required this.data}); final KStoreAdminData data;
-  @override State<MarketingModule> createState()=>_MarketingModuleState();
-}
-class _MarketingModuleState extends State<MarketingModule>{
-  final campaigns=[['Summer Wellness Sale','Push + Banner','Active','12.4K'],['Repeat Customer Offer','WhatsApp','Scheduled','4.8K'],['VIP Customer Campaign','Email','Completed','1.2K'],['New Product Launch','Push','Draft','0']];
-  @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
-    _ModuleHeader(title:'Marketing',subtitle:'Campaigns, banners, promotions and customer targeting',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Create Campaign',fields:['Campaign Name','Channel','Audience','Start Date','Message'])),icon:const Icon(Icons.add),label:const Text('Create Campaign'))]),
-    _StatsRow(items:[['Campaigns','${campaigns.length}',Icons.campaign],['Active','1',Icons.play_circle],['Reach','18.4K',Icons.visibility],['Conversions','486',Icons.shopping_cart]]),
-    Expanded(child:ListView(children:campaigns.map<Widget>((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.campaign)),title:Text(r[0],style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text('${r[1]} • ${r[2]} • Reach ${r[3]}'),trailing:PopupMenuButton<String>(onSelected:(v)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$v: ${r[0]}'))),itemBuilder:(_)=>const[PopupMenuItem(value:'Edit',child:Text('Edit')),PopupMenuItem(value:'Duplicate',child:Text('Duplicate')),PopupMenuItem(value:'Pause',child:Text('Pause')),PopupMenuItem(value:'View Report',child:Text('View Report'))]))).toList())),
-  ]));
+  const MarketingModule({super.key});
+
+  @override
+  State<MarketingModule> createState() => _MarketingModuleState();
 }
 
+class _MarketingModuleState extends State<MarketingModule> {
+  final List<List<String>> campaigns = [
+    ['Diwali Herbal Offer', 'WhatsApp', 'Active', '12,500', '₹18,400'],
+    ['Welcome Coupon', 'App Push', 'Active', '8,200', '₹9,850'],
+    ['Reseller Special', 'WhatsApp', 'Scheduled', '4,600', '₹7,200'],
+    ['Free Delivery Campaign', 'Banner', 'Paused', '15,300', '₹21,600'],
+  ];
+
+  final List<Widget> _campaignCards() {
+    final List<Widget> cards = [];
+
+    for (final r in campaigns) {
+      cards.add(
+        Card(
+          margin: const EdgeInsets.fromLTRB(16, 5, 16, 5),
+          child: ListTile(
+            leading: const CircleAvatar(
+              child: Icon(Icons.campaign),
+            ),
+            title: Text(
+              r[0],
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: Text(
+              '${r[1]} • ${r[2]} • Reach ${r[3]}\nRevenue ${r[4]}',
+            ),
+            isThreeLine: true,
+            trailing: PopupMenuButton<String>(
+              onSelected: (v) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('$v: ${r[0]}'),
+                  ),
+                );
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'Edit',
+                  child: Text('Edit'),
+                ),
+                PopupMenuItem(
+                  value: 'Duplicate',
+                  child: Text('Duplicate'),
+                ),
+                PopupMenuItem(
+                  value: 'Pause',
+                  child: Text('Pause'),
+                ),
+                PopupMenuItem(
+                  value: 'View Report',
+                  child: Text('View Report'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return cards;
+  }
+
+  void _showCreateCampaign() {
+    showDialog(
+      context: context,
+      builder: (_) => _SimpleFormDialog(
+        title: 'Create Campaign',
+        fields: const [
+          'Campaign Name',
+          'Channel',
+          'Audience',
+          'Start Date',
+          'End Date',
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cards = _campaignCards();
+
+    return ModuleShell(
+      child: Column(
+        children: [
+          _ModuleHeader(
+            title: 'Marketing',
+            subtitle: 'Campaigns, customer reach and promotional activity',
+            icon: Icons.campaign_outlined,
+            actions: [
+              IconButton(
+                tooltip: 'Create campaign',
+                onPressed: _showCreateCampaign,
+                icon: const Icon(Icons.add_circle_outline),
+              ),
+            ],
+          ),
+          _StatsRow(
+            items: [
+              _ReportCard(
+                'Campaigns',
+                '${campaigns.length}',
+                Icons.campaign_outlined,
+              ),
+              _ReportCard(
+                'Active',
+                '${campaigns.where((r) => r[2] == 'Active').length}',
+                Icons.play_circle_outline,
+              ),
+              _ReportCard(
+                'Reach',
+                '40.6K',
+                Icons.groups_outlined,
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: ListView(
+              children: cards,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 class NotificationModule extends StatefulWidget {
   const NotificationModule({super.key, required this.data});
 
