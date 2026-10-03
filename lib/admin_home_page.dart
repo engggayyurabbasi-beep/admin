@@ -1,3 +1,4 @@
+import 'product_management_page.dart';
 import 'package:flutter/material.dart';
 
 /// K - Store Admin: single-file complete module dashboard.
@@ -34,6 +35,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
     ['Staff & Roles', Icons.admin_panel_settings_outlined],
     ['Settings', Icons.settings_outlined],
     ['Account & Security', Icons.security_outlined],
+    ['Products', Icons.inventory_2_outlined],
   ];
 
   Widget page() {
@@ -56,6 +58,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
       case 16: return IntegrationsPage(store);
       case 17: return StaffPage(store);
       case 18: return SettingsPage(store);
+    case 20: return const ProductManagementPage();
       case 19: return SecurityPage(store);
       default: return DashboardPage(store, (i) => setState(() => index = i));
     }
