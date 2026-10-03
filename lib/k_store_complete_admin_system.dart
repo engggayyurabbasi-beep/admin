@@ -2945,7 +2945,7 @@ class _PaymentModuleState extends State<PaymentModule> {
     _ModuleHeader(title:'Payments',subtitle:'Transactions, payment status and refunds',actions:[OutlinedButton.icon(onPressed:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Payment export prepared'))),icon:const Icon(Icons.download_outlined),label:const Text('Export'))]),
     _StatsRow(items:[['Total','₹${tx.fold<double>(0,(s,x)=>s+(x['amount'] as double)).toStringAsFixed(0)}',Icons.payments],['Paid','${tx.where((x)=>x['status']=='Paid').length}',Icons.check_circle],['Pending','${tx.where((x)=>x['status']=='Pending').length}',Icons.schedule],['Refunded','${tx.where((x)=>x['status']=='Refunded').length}',Icons.undo]]),
     Padding(padding:const EdgeInsets.symmetric(horizontal:16,vertical:8),child:Align(alignment:Alignment.centerRight,child:DropdownButton<String>(value:filter,items:const ['All','Paid','Pending','Refunded'].map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),onChanged:(v)=>setState(()=>filter=v!)))),
-    Expanded(child:ListView(children:tx.where((x)=>filter=='All'||x['status']==filter).map((x)=>Card(margin:const EdgeInsets.fromLTRB(16,4,16,6),child:ListTile(
+    Expanded(child:ListView(children:tx.where((x)=>filter=='All'||x['status']==filter).map<Widget>((x)=>Card(margin:const EdgeInsets.fromLTRB(16,4,16,6),child:ListTile(
       leading:CircleAvatar(child:Icon(x['status']=='Paid'?Icons.check:x['status']=='Refunded'?Icons.undo:Icons.schedule)),
       title:Text('${x['id']} • ${x['order']}',style:const TextStyle(fontWeight:FontWeight.bold)),
       subtitle:Text('${x['customer']} • ${x['method']} • ${x['date']}'),
@@ -2968,7 +2968,7 @@ class _ShippingModuleState extends State<ShippingModule>{
   @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
     _ModuleHeader(title:'Delivery & Shipping',subtitle:'Courier, charges, tracking and serviceability',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Add Shipping Zone',fields:['Zone Name','Pincodes','Delivery Charge','Free Delivery Above'])),icon:const Icon(Icons.add),label:const Text('Add Zone'))]),
     _StatsRow(items:[['Shipments','${shipments.length}',Icons.local_shipping],['In Transit','${shipments.where((x)=>x['status']=='In Transit').length}',Icons.route],['Delivered','${shipments.where((x)=>x['status']=='Delivered').length}',Icons.done_all],['COD Charge','₹29',Icons.money]]),
-    Expanded(child:ListView(children:shipments.map((x)=>Card(margin:const EdgeInsets.fromLTRB(16,4,16,6),child:ListTile(
+    Expanded(child:ListView(children:shipments.map<Widget>((x)=>Card(margin:const EdgeInsets.fromLTRB(16,4,16,6),child:ListTile(
       leading:const CircleAvatar(child:Icon(Icons.local_shipping_outlined)),title:Text('${x['awb']} • ${x['order']}',style:const TextStyle(fontWeight:FontWeight.bold)),
       subtitle:Text('${x['courier']} • ${x['city']} • ₹${x['charge']} • ${x['status']}'),
       trailing:PopupMenuButton<String>(onSelected:(v){if(v=='Track')ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Tracking ${x['awb']}')));},itemBuilder:(_)=>const[PopupMenuItem(value:'Track',child:Text('Track Shipment')),PopupMenuItem(value:'Label',child:Text('Download Label')),PopupMenuItem(value:'Cancel',child:Text('Cancel Shipment'))]),
@@ -2990,7 +2990,7 @@ class _CustomOrderModuleState extends State<CustomOrderModule>{
   void add(){final c=TextEditingController();final r=TextEditingController();showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('New Custom Order'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:c,decoration:const InputDecoration(labelText:'Customer')),TextField(controller:r,decoration:const InputDecoration(labelText:'Requirement'))]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancel')),FilledButton(onPressed:(){setState(()=>requests.insert(0,{'id':'CO-${requests.length+1}'.padLeft(6,'0'),'customer':c.text,'request':r.text,'status':'New','value':0});Navigator.pop(context);},child:const Text('Create'))]));}
   @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
     _ModuleHeader(title:'Custom Orders',subtitle:'Manage quotations, approvals and special requirements',actions:[FilledButton.icon(onPressed:add,icon:const Icon(Icons.add),label:const Text('New Request'))]),
-    Expanded(child:ListView(children:requests.map((x)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(
+    Expanded(child:ListView(children:requests.map<Widget>((x)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(
       leading:CircleAvatar(child:Text(x['id'].toString().substring(3))),title:Text('${x['id']} • ${x['customer']}',style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text('${x['request']}\nStatus: ${x['status']} • Value: ₹${x['value']}'),
       isThreeLine:true,trailing:PopupMenuButton<String>(onSelected:(v)=>setState(()=>x['status']=v),itemBuilder:(_)=>const['New','Quotation Sent','Approved','Processing','Completed','Rejected'].map((v)=>PopupMenuItem(value:v,child:Text(v))).toList()),
     )).toList())),
@@ -3008,7 +3008,7 @@ class _VendorModuleState extends State<VendorModule>{
     _ModuleHeader(title:'Vendors',subtitle:'Vendor onboarding, verification, products and payouts',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Add Vendor',fields:['Business Name','Email','Phone','GSTIN','Address'])),icon:const Icon(Icons.add_business),label:const Text('Add Vendor'))]),
     _StatsRow(items:[['Total','${rows.length}',Icons.storefront],['Verified','${rows.where((r)=>r[3]=='Verified').length}',Icons.verified],['Pending','1',Icons.pending],['Payout Due','₹62,400',Icons.account_balance]]),
     Padding(padding:const EdgeInsets.symmetric(horizontal:16),child:Align(alignment:Alignment.centerRight,child:DropdownButton<String>(value:filter,items:const['All','Verified','Pending','Suspended'].map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),onChanged:(v)=>setState(()=>filter=v!)))),
-    Expanded(child:ListView(children:list.map((r)=>Card(margin:const EdgeInsets.fromLTRB(16,4,16,6),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.store)),title:Text('${r[0]} • ${r[1]}'),subtitle:Text('${r[2]} • ${r[3]}\nSales: ${r[4]}'),isThreeLine:true,trailing:IconButton(onPressed:()=>showDialog(context:context,builder:(_)=>_VendorDialog(row:r)),icon:const Icon(Icons.more_horiz)))).toList())),
+    Expanded(child:ListView(children:list.map<Widget>((r)=>Card(margin:const EdgeInsets.fromLTRB(16,4,16,6),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.store)),title:Text('${r[0]} • ${r[1]}'),subtitle:Text('${r[2]} • ${r[3]}\nSales: ${r[4]}'),isThreeLine:true,trailing:IconButton(onPressed:()=>showDialog(context:context,builder:(_)=>_VendorDialog(row:r)),icon:const Icon(Icons.more_horiz)))).toList())),
   ]));}
 }
 class _VendorDialog extends StatelessWidget{const _VendorDialog({required this.row});final List<String> row;@override Widget build(BuildContext c)=>AlertDialog(title:Text(row[1]),content:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Vendor ID: ${row[0]}'),Text('Email: ${row[2]}'),Text('Status: ${row[3]}'),Text('Sales: ${row[4]}'),const Divider(),const Text('Products: 24'),const Text('Orders: 86'),const Text('Commission: 8%')]),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Close'))]);}
@@ -3022,7 +3022,7 @@ class _ResellerModuleState extends State<ResellerModule>{
   @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
     _ModuleHeader(title:'Resellers',subtitle:'0-investment reseller network, sales and commissions',actions:[FilledButton.icon(onPressed:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Reseller invite link copied'))),icon:const Icon(Icons.link),label:const Text('Invite Reseller'))]),
     _StatsRow(items:[['Resellers','${rows.length}',Icons.groups],['Active','${rows.where((r)=>r[3]=='Active').length}',Icons.check_circle],['Sales','₹99,900',Icons.trending_up],['Commission','₹9,990',Icons.percent]]),
-    Expanded(child:ListView(children:rows.map((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.person)),title:Text('${r[0]} • ${r[1]}'),subtitle:Text('${r[2]} • ${r[3]}\nSales ${r[4]} • ${r[5]} orders'),isThreeLine:true,trailing:PopupMenuButton<String>(onSelected:(v)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$v selected for ${r[1]}'))),itemBuilder:(_)=>const[PopupMenuItem(value:'View Profile',child:Text('View Profile')),PopupMenuItem(value:'Approve',child:Text('Approve')),PopupMenuItem(value:'Payout',child:Text('Payout'))]))).toList())),
+    Expanded(child:ListView(children:rows.map<Widget>((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.person)),title:Text('${r[0]} • ${r[1]}'),subtitle:Text('${r[2]} • ${r[3]}\nSales ${r[4]} • ${r[5]} orders'),isThreeLine:true,trailing:PopupMenuButton<String>(onSelected:(v)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$v selected for ${r[1]}'))),itemBuilder:(_)=>const[PopupMenuItem(value:'View Profile',child:Text('View Profile')),PopupMenuItem(value:'Approve',child:Text('Approve')),PopupMenuItem(value:'Payout',child:Text('Payout'))]))).toList())),
   ]));
 }
 
@@ -3035,7 +3035,7 @@ class _AffiliateModuleState extends State<AffiliateModule>{
   @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
     _ModuleHeader(title:'Affiliates',subtitle:'Referral links, clicks, conversions and commissions',actions:[FilledButton.icon(onPressed:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Affiliate link copied'))),icon:const Icon(Icons.share_outlined),label:const Text('Create Link'))]),
     _StatsRow(items:[['Affiliates','${rows.length}',Icons.campaign],['Clicks','${rows.fold<int>(0,(s,r)=>s+int.parse(r[5]))}',Icons.touch_app],['Conversions','73',Icons.shopping_cart],['Commission','₹43,270',Icons.currency_rupee]]),
-    Expanded(child:ListView(children:rows.map((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.campaign)),title:Text('${r[0]} • ${r[1]}'),subtitle:Text('${r[2]} • ${r[4]}\nEarnings ${r[3]} • ${r[5]} clicks'),isThreeLine:true,trailing:IconButton(onPressed:()=>showDialog(context:context,builder:(_)=>AlertDialog(title:Text(r[1]),content:Text('Referral conversion rate: 8.7%\\nPending payout: ${r[3]}\\nCommission plan: 10%'),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Close'))])),icon:const Icon(Icons.analytics_outlined)))).toList())),
+    Expanded(child:ListView(children:rows.map<Widget>((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.campaign)),title:Text('${r[0]} • ${r[1]}'),subtitle:Text('${r[2]} • ${r[4]}\nEarnings ${r[3]} • ${r[5]} clicks'),isThreeLine:true,trailing:IconButton(onPressed:()=>showDialog(context:context,builder:(_)=>AlertDialog(title:Text(r[1]),content:Text('Referral conversion rate: 8.7%\\nPending payout: ${r[3]}\\nCommission plan: 10%'),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Close'))])),icon:const Icon(Icons.analytics_outlined)))).toList())),
   ]));
 }
 
@@ -3053,7 +3053,7 @@ class _WalletRewardModuleState extends State<WalletRewardModule>{
   @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
     _ModuleHeader(title:'Wallet & Rewards',subtitle:'Wallet balances, reward points and transactions',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Manual Wallet Adjustment',fields:['Customer ID','Amount','Credit / Debit','Reason'])),icon:const Icon(Icons.add_card),label:const Text('Adjust Wallet'))]),
     _StatsRow(items:[['Wallet Balance','₹2,48,500',Icons.account_balance_wallet],['Rewards','1,84,200 pts',Icons.stars],['Credits Today','₹8,450',Icons.add_circle],['Debits Today','₹3,280',Icons.remove_circle]]),
-    Expanded(child:ListView(children:tx.map((x)=>Card(margin:const EdgeInsets.fromLTRB(16,4,16,6),child:ListTile(leading:CircleAvatar(child:Icon(x['type']=='Credit'?Icons.add:Icons.remove)),title:Text('${x['id']} • ${x['user']}'),subtitle:Text('${x['source']} • ${x['date']}'),trailing:Text('${x['type']=='Credit'?'+':'-'} ₹${x['amount']}'))).toList())),
+    Expanded(child:ListView(children:tx.map<Widget>((x)=>Card(margin:const EdgeInsets.fromLTRB(16,4,16,6),child:ListTile(leading:CircleAvatar(child:Icon(x['type']=='Credit'?Icons.add:Icons.remove)),title:Text('${x['id']} • ${x['user']}'),subtitle:Text('${x['source']} • ${x['date']}'),trailing:Text('${x['type']=='Credit'?'+':'-'} ₹${x['amount']}'))).toList())),
   ]));
 }
 
@@ -3068,7 +3068,7 @@ class _InventoryModuleState extends State<InventoryModule>{
     _ModuleHeader(title:'Inventory',subtitle:'Stock levels, low-stock alerts and adjustments',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Stock Adjustment',fields:['SKU / Product','Quantity','Adjustment Type','Reason'])),icon:const Icon(Icons.tune),label:const Text('Adjust Stock'))]),
     _StatsRow(items:[['Products','${rows.length}',Icons.inventory_2],['Low Stock','${rows.where((r)=>int.parse(r[3])<=int.parse(r[4])).length}',Icons.warning],['Stock Units','256',Icons.warehouse],['Stock Value','₹1.82L',Icons.currency_rupee]]),
     Padding(padding:const EdgeInsets.all(16),child:TextField(onChanged:(v)=>setState(()=>q=v),decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'Search SKU or product...',border:OutlineInputBorder()))),
-    Expanded(child:ListView(children:list.map((r)=>Card(margin:const EdgeInsets.fromLTRB(16,2,16,6),child:ListTile(leading:CircleAvatar(child:Icon(int.parse(r[3])<=int.parse(r[4])?Icons.warning:Icons.inventory)),title:Text('${r[0]} • ${r[1]}'),subtitle:Text('${r[2]} • Reorder at ${r[4]} units'),trailing:Text('${r[3]}\\n${r[5]}',textAlign:TextAlign.right))).toList())),
+    Expanded(child:ListView(children:list.map<Widget>((r)=>Card(margin:const EdgeInsets.fromLTRB(16,2,16,6),child:ListTile(leading:CircleAvatar(child:Icon(int.parse(r[3])<=int.parse(r[4])?Icons.warning:Icons.inventory)),title:Text('${r[0]} • ${r[1]}'),subtitle:Text('${r[2]} • Reorder at ${r[4]} units'),trailing:Text('${r[3]}\\n${r[5]}',textAlign:TextAlign.right))).toList())),
   ]));}
 }
 
@@ -3094,7 +3094,7 @@ class _MarketingModuleState extends State<MarketingModule>{
   @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
     _ModuleHeader(title:'Marketing',subtitle:'Campaigns, banners, promotions and customer targeting',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Create Campaign',fields:['Campaign Name','Channel','Audience','Start Date','Message'])),icon:const Icon(Icons.add),label:const Text('Create Campaign'))]),
     _StatsRow(items:[['Campaigns','${campaigns.length}',Icons.campaign],['Active','1',Icons.play_circle],['Reach','18.4K',Icons.visibility],['Conversions','486',Icons.shopping_cart]]),
-    Expanded(child:ListView(children:campaigns.map((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.campaign)),title:Text(r[0],style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text('${r[1]} • ${r[2]} • Reach ${r[3]}'),trailing:PopupMenuButton<String>(onSelected:(v)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$v: ${r[0]}'))),itemBuilder:(_)=>const[PopupMenuItem(value:'Edit',child:Text('Edit')),PopupMenuItem(value:'Duplicate',child:Text('Duplicate')),PopupMenuItem(value:'Pause',child:Text('Pause')),PopupMenuItem(value:'View Report',child:Text('View Report'))]))).toList())),
+    Expanded(child:ListView(children:campaigns.map<Widget>((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.campaign)),title:Text(r[0],style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text('${r[1]} • ${r[2]} • Reach ${r[3]}'),trailing:PopupMenuButton<String>(onSelected:(v)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$v: ${r[0]}'))),itemBuilder:(_)=>const[PopupMenuItem(value:'Edit',child:Text('Edit')),PopupMenuItem(value:'Duplicate',child:Text('Duplicate')),PopupMenuItem(value:'Pause',child:Text('Pause')),PopupMenuItem(value:'View Report',child:Text('View Report'))]))).toList())),
   ]));
 }
 
@@ -3107,7 +3107,7 @@ class _NotificationModuleState extends State<NotificationModule>{
   @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
     _ModuleHeader(title:'Notifications',subtitle:'Push, SMS, email and WhatsApp notification templates',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Send Notification',fields:['Title','Message','Audience','Channel'])),icon:const Icon(Icons.send),label:const Text('Send Notification'))]),
     _StatsRow(items:[['Templates','${templates.length}',Icons.description],['Enabled','3',Icons.notifications_active],['Sent Today','2,840',Icons.send],['Failed','18',Icons.error_outline]]),
-    Expanded(child:ListView(children:templates.map((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.notifications_none)),title:Text(r[0]),subtitle:Text('${r[1]}\\n${r[2]}'),isThreeLine:true,trailing:Switch(value:r[2]=='Enabled',onChanged:(v)=>setState(()=>r[2]=v?'Enabled':'Disabled')))).toList())),
+    Expanded(child:ListView(children:templates.map<Widget>((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.notifications_none)),title:Text(r[0]),subtitle:Text('${r[1]}\\n${r[2]}'),isThreeLine:true,trailing:Switch(value:r[2]=='Enabled',onChanged:(v)=>setState(()=>r[2]=v?'Enabled':'Disabled')))).toList())),
   ]));
 }
 
@@ -3119,7 +3119,7 @@ class _ApiModuleState extends State<ApiModule>{
   final integrations=[['Razorpay','Payments','Connected',Icons.payments],['Shiprocket','Shipping','Connected',Icons.local_shipping],['WhatsApp API','Messaging','Not Connected',Icons.chat],['Firebase','Notifications','Connected',Icons.notifications],['Google Login','Authentication','Connected',Icons.login]];
   @override Widget build(BuildContext context)=>ModuleShell(child:ListView(padding:const EdgeInsets.all(16),children:[
     _ModuleHeader(title:'API & Integrations',subtitle:'Payment, shipping, messaging and platform integrations',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Add API Integration',fields:['Provider','API Key','Secret','Webhook URL'])),icon:const Icon(Icons.add_link),label:const Text('Add Integration'))]),
-    ...integrations.map((r)=>Card(child:ListTile(leading:CircleAvatar(child:Icon(r[3] as IconData)),title:Text(r[0]),subtitle:Text('${r[1]} • ${r[2]}'),trailing:Switch(value:r[2]=='Connected',onChanged:(v)=>setState(()=>r[2]=v?'Connected':'Not Connected'))))),
+    ...integrations.map<Widget>((r)=>Card(child:ListTile(leading:CircleAvatar(child:Icon(r[3] as IconData)),title:Text(r[0]),subtitle:Text('${r[1]} • ${r[2]}'),trailing:Switch(value:r[2]=='Connected',onChanged:(v)=>setState(()=>r[2]=v?'Connected':'Not Connected'))))),
     const SizedBox(height:12),
     _ReportCard(title:'Webhooks',icon:Icons.webhook,items:['Order created','Payment captured','Payment failed','Shipment updated','Customer registered']),
   ]));
@@ -3134,7 +3134,7 @@ class _StaffRoleModuleState extends State<StaffRoleModule>{
   @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
     _ModuleHeader(title:'Staff & Roles',subtitle:'Team members, roles and permissions',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Add Staff',fields:['Name','Email','Phone','Role','Password'])),icon:const Icon(Icons.person_add),label:const Text('Add Staff'))]),
     _StatsRow(items:[['Staff','${staff.length}',Icons.people],['Active','${staff.where((x)=>x[4] as bool).length}',Icons.check_circle],['Roles','6',Icons.admin_panel_settings],['Admins','2',Icons.security]]),
-    Expanded(child:ListView(children:staff.map((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:CircleAvatar(child:Text(r[1].toString().substring(0,1))),title:Text(r[1].toString()),subtitle:Text('${r[2]} • ${r[3]}'),trailing:Switch(value:r[4] as bool,onChanged:(v)=>setState(()=>r[4]=v)))).toList())),
+    Expanded(child:ListView(children:staff.map<Widget>((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:CircleAvatar(child:Text(r[1].toString().substring(0,1))),title:Text(r[1].toString()),subtitle:Text('${r[2]} • ${r[3]}'),trailing:Switch(value:r[4] as bool,onChanged:(v)=>setState(()=>r[4]=v)))).toList())),
   ]));
 }
 
@@ -3245,7 +3245,7 @@ class _InfoLine extends StatelessWidget {
 class _ReportCard extends StatelessWidget {
   const _ReportCard({required this.title, required this.icon, required this.items});
   final String title; final IconData icon; final List<String> items;
-  @override Widget build(BuildContext context)=>Card(margin:const EdgeInsets.only(bottom:12),child:ExpansionTile(leading:CircleAvatar(child:Icon(icon)),title:Text(title,style:const TextStyle(fontWeight:FontWeight.bold)),children:items.map((x)=>ListTile(title:Text(x),leading:const Icon(Icons.chevron_right),onTap:()=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$x opened'))))).toList()));
+  @override Widget build(BuildContext context)=>Card(margin:const EdgeInsets.only(bottom:12),child:ExpansionTile(leading:CircleAvatar(child:Icon(icon)),title:Text(title,style:const TextStyle(fontWeight:FontWeight.bold)),children:items.map<Widget>((x)=>ListTile(title:Text(x),leading:const Icon(Icons.chevron_right),onTap:()=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$x opened'))))).toList()));
 }
 
 class _SettingSection extends StatelessWidget {
@@ -3262,7 +3262,7 @@ class _SimpleFormDialog extends StatelessWidget {
   final String title; final List<String> fields;
   @override Widget build(BuildContext context)=>AlertDialog(
     title:Text(title),
-    content:SizedBox(width:420,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:fields.map((f)=>Padding(padding:const EdgeInsets.only(bottom:10),child:TextField(decoration:InputDecoration(labelText:f,border:const OutlineInputBorder())))).toList()))),
+    content:SizedBox(width:420,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:fields.map<Widget>((f)=>Padding(padding:const EdgeInsets.only(bottom:10),child:TextField(decoration:InputDecoration(labelText:f,border:const OutlineInputBorder())))).toList()))),
     actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(context),child:const Text('Save'))],
   );
 }
