@@ -3088,38 +3088,30 @@ class _InventoryModuleState extends State<InventoryModule> {
         .where((r) => r.join(' ').toLowerCase().contains(q.toLowerCase()))
         .toList();
 
-    final int totalUnits = rows.fold(
+    final totalUnits = rows.fold<int>(
       0,
       (sum, r) => sum + int.parse(r[3]),
     );
-
-    final int lowStock = rows.where((r) {
-      return int.parse(r[3]) <= int.parse(r[4]);
-    }).length;
+    final lowStock =
+        rows.where((r) => int.parse(r[3]) <= int.parse(r[4])).length;
 
     final List<Widget> cards = [];
     for (final r in list) {
-      final int stock = int.parse(r[3]);
-      final int reorder = int.parse(r[4]);
-      final bool warning = stock <= reorder;
+      final stock = int.parse(r[3]);
+      final reorder = int.parse(r[4]);
+      final warning = stock <= reorder;
 
       cards.add(
         Card(
           margin: const EdgeInsets.fromLTRB(16, 2, 16, 6),
           child: ListTile(
             leading: CircleAvatar(
-              child: Icon(
-                warning ? Icons.warning : Icons.inventory,
-              ),
+              child: Icon(warning ? Icons.warning : Icons.inventory),
             ),
             title: Text('${r[0]} • ${r[1]}'),
-            subtitle: Text(
-              '${r[2]} • Reorder at ${r[4]} units',
-            ),
-            trailing: Text(
-              '${r[3]}\n${r[5]}',
-              textAlign: TextAlign.right,
-            ),
+            subtitle: Text('${r[2]} • Reorder at ${r[4]} units'),
+            trailing: Text('${r[3]}\n${r[5]}', textAlign: TextAlign.right),
+            isThreeLine: false,
             onTap: () {
               showDialog(
                 context: context,
@@ -3151,7 +3143,6 @@ class _InventoryModuleState extends State<InventoryModule> {
           _ModuleHeader(
             title: 'Inventory',
             subtitle: 'Stock levels, reorder alerts and inventory control',
-            icon: Icons.inventory_2_outlined,
             actions: [
               IconButton(
                 tooltip: 'Add stock',
@@ -3176,19 +3167,19 @@ class _InventoryModuleState extends State<InventoryModule> {
           _StatsRow(
             items: [
               _ReportCard(
-                'Products',
-                '${rows.length}',
-                Icons.inventory_2_outlined,
+                title: 'Products',
+                icon: Icons.inventory_2_outlined,
+                items: ['${rows.length} products'],
               ),
               _ReportCard(
-                'Stock Units',
-                '$totalUnits',
-                Icons.warehouse_outlined,
+                title: 'Stock Units',
+                icon: Icons.warehouse_outlined,
+                items: ['$totalUnits units'],
               ),
               _ReportCard(
-                'Low Stock',
-                '$lowStock',
-                Icons.warning_amber_outlined,
+                title: 'Low Stock',
+                icon: Icons.warning_amber_outlined,
+                items: ['$lowStock products need attention'],
               ),
             ],
           ),
@@ -3204,9 +3195,7 @@ class _InventoryModuleState extends State<InventoryModule> {
             ),
           ),
           Expanded(
-            child: ListView(
-              children: cards,
-            ),
+            child: ListView(children: cards),
           ),
         ],
       ),
@@ -3229,22 +3218,17 @@ class _MarketingModuleState extends State<MarketingModule> {
     ['Free Delivery Campaign', 'Banner', 'Paused', '15,300', '₹21,600'],
   ];
 
-  final List<Widget> _campaignCards() {
+  List<Widget> _campaignCards() {
     final List<Widget> cards = [];
-
     for (final r in campaigns) {
       cards.add(
         Card(
           margin: const EdgeInsets.fromLTRB(16, 5, 16, 5),
           child: ListTile(
-            leading: const CircleAvatar(
-              child: Icon(Icons.campaign),
-            ),
+            leading: const CircleAvatar(child: Icon(Icons.campaign)),
             title: Text(
               r[0],
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             subtitle: Text(
               '${r[1]} • ${r[2]} • Reach ${r[3]}\nRevenue ${r[4]}',
@@ -3253,24 +3237,13 @@ class _MarketingModuleState extends State<MarketingModule> {
             trailing: PopupMenuButton<String>(
               onSelected: (v) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('$v: ${r[0]}'),
-                  ),
+                  SnackBar(content: Text('$v: ${r[0]}')),
                 );
               },
               itemBuilder: (_) => const [
-                PopupMenuItem(
-                  value: 'Edit',
-                  child: Text('Edit'),
-                ),
-                PopupMenuItem(
-                  value: 'Duplicate',
-                  child: Text('Duplicate'),
-                ),
-                PopupMenuItem(
-                  value: 'Pause',
-                  child: Text('Pause'),
-                ),
+                PopupMenuItem(value: 'Edit', child: Text('Edit')),
+                PopupMenuItem(value: 'Duplicate', child: Text('Duplicate')),
+                PopupMenuItem(value: 'Pause', child: Text('Pause')),
                 PopupMenuItem(
                   value: 'View Report',
                   child: Text('View Report'),
@@ -3281,7 +3254,6 @@ class _MarketingModuleState extends State<MarketingModule> {
         ),
       );
     }
-
     return cards;
   }
 
@@ -3304,6 +3276,8 @@ class _MarketingModuleState extends State<MarketingModule> {
   @override
   Widget build(BuildContext context) {
     final cards = _campaignCards();
+    final active =
+        campaigns.where((r) => r[2] == 'Active').length;
 
     return ModuleShell(
       child: Column(
@@ -3311,7 +3285,6 @@ class _MarketingModuleState extends State<MarketingModule> {
           _ModuleHeader(
             title: 'Marketing',
             subtitle: 'Campaigns, customer reach and promotional activity',
-            icon: Icons.campaign_outlined,
             actions: [
               IconButton(
                 tooltip: 'Create campaign',
@@ -3323,27 +3296,25 @@ class _MarketingModuleState extends State<MarketingModule> {
           _StatsRow(
             items: [
               _ReportCard(
-                'Campaigns',
-                '${campaigns.length}',
-                Icons.campaign_outlined,
+                title: 'Campaigns',
+                icon: Icons.campaign_outlined,
+                items: ['${campaigns.length} campaigns'],
               ),
               _ReportCard(
-                'Active',
-                '${campaigns.where((r) => r[2] == 'Active').length}',
-                Icons.play_circle_outline,
+                title: 'Active',
+                icon: Icons.play_circle_outline,
+                items: ['$active active campaigns'],
               ),
               _ReportCard(
-                'Reach',
-                '40.6K',
-                Icons.groups_outlined,
+                title: 'Reach',
+                icon: Icons.groups_outlined,
+                items: ['40.6K customers'],
               ),
             ],
           ),
           const SizedBox(height: 4),
           Expanded(
-            child: ListView(
-              children: cards,
-            ),
+            child: ListView(children: cards),
           ),
         ],
       ),
