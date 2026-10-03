@@ -61,7 +61,7 @@ class _KStoreAdminSystemState extends State<KStoreAdminSystem> {
     Icons.account_balance_wallet_outlined,
     Icons.warehouse_outlined,
     Icons.analytics_outlined,
-    Icons.campaign_outlined,
+    Icons.marketing_outlined,
     Icons.notifications_none,
     Icons.api_outlined,
     Icons.admin_panel_settings_outlined,
@@ -297,10 +297,69 @@ class KStoreAdminData extends ChangeNotifier {
 }
 
 class ProductItem {
-  ProductItem(this.id, this.name, this.category, this.price, this.mrp, this.stock);
+  ProductItem(
+    this.id,
+    this.name,
+    this.category,
+    this.price,
+    this.mrp,
+    this.stock, {
+    this.sku = '',
+    this.brand = '',
+    this.shortDescription = '',
+    this.description = '',
+    this.ingredients = '',
+    this.howToUse = '',
+    this.benefits = '',
+    this.unit = 'Piece',
+    this.tax = 0,
+    this.weight = 0,
+    this.lowStockLimit = 10,
+    this.barcode = '',
+    this.imageUrl = '',
+    this.status = 'Active',
+    this.featured = false,
+    this.newArrival = false,
+    this.freeShipping = false,
+    this.metaTitle = '',
+    this.metaDescription = '',
+    this.slug = '',
+    this.tags = '',
+    this.bulkPricing = const [],
+    this.variants = const [],
+    this.faq = const [],
+  });
+
   String id, name, category;
   double price, mrp;
   int stock;
+  String sku, brand, shortDescription, description, ingredients;
+  String howToUse, benefits, unit, barcode, imageUrl, status;
+  String metaTitle, metaDescription, slug, tags;
+  double tax, weight;
+  int lowStockLimit;
+  bool featured, newArrival, freeShipping;
+  List<BulkPrice> bulkPricing;
+  List<ProductVariant> variants;
+  List<ProductFaq> faq;
+}
+
+class BulkPrice {
+  BulkPrice(this.minQty, this.maxQty, this.price);
+  int minQty, maxQty;
+  double price;
+}
+
+class ProductVariant {
+  ProductVariant(this.name, this.value, this.priceAdjustment, this.stock);
+  String name, value;
+  double priceAdjustment;
+  int stock;
+}
+
+class ProductFaq {
+  ProductFaq(this.question, this.answer);
+  String question, answer;
 }
 
 class CategoryItem {
@@ -568,129 +627,924 @@ class ProductModule extends StatefulWidget {
 class _ProductModuleState extends State<ProductModule> {
   String query = '';
   String stockFilter = 'All';
+  String categoryFilter = 'All';
 
   @override
   Widget build(BuildContext context) {
+    final categories = ['All', ...widget.data.categories.map((c) => c.name)];
     final products = widget.data.products.where((p) {
-      final q = query.toLowerCase();
-      final matches = p.name.toLowerCase().contains(q) ||
+      final q = query.trim().toLowerCase();
+      final matchesSearch = q.isEmpty ||
+          p.name.toLowerCase().contains(q) ||
           p.id.toLowerCase().contains(q) ||
+          p.sku.toLowerCase().contains(q) ||
           p.category.toLowerCase().contains(q);
-      final stock = stockFilter == 'All' ||
-          (stockFilter == 'In Stock' && p.stock > 10) ||
-          (stockFilter == 'Low Stock' && p.stock > 0 && p.stock <= 10) ||
+      final matchesCategory =
+          categoryFilter == 'All' || p.category == categoryFilter;
+      final matchesStock = stockFilter == 'All' ||
+          (stockFilter == 'In Stock' && p.stock > p.lowStockLimit) ||
+          (stockFilter == 'Low Stock' &&
+              p.stock > 0 &&
+              p.stock <= p.lowStockLimit) ||
           (stockFilter == 'Out of Stock' && p.stock == 0);
-      return matches && stock;
+      return matchesSearch && matchesCategory && matchesStock;
     }).toList();
 
     return ModuleShell(
       actions: [
+        OutlinedButton.icon(
+          onPressed: () => _showProductGuide(context),
+          icon: const Icon(Icons.help_outline),
+          label: const Text('Product Fields'),
+        ),
         FilledButton.icon(
-          onPressed: () => _addProduct(context),
+          onPressed: () => _openProductForm(context),
           icon: const Icon(Icons.add),
           label: const Text('Add Product'),
         ),
       ],
       child: Column(
         children: [
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              Expanded(
+              SizedBox(
+                width: 320,
                 child: TextField(
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.search),
-                    hintText: 'Search products, SKU or category',
+                    hintText: 'Search name, SKU, barcode or category',
                     border: OutlineInputBorder(),
                   ),
                   onChanged: (v) => setState(() => query = v),
                 ),
               ),
-              const SizedBox(width: 8),
               DropdownButton<String>(
-                value: stockFilter,
-                items: ['All', 'In Stock', 'Low Stock', 'Out of Stock']
+                value: categoryFilter,
+                items: categories
                     .map((v) => DropdownMenuItem(value: v, child: Text(v)))
                     .toList(),
-                onChanged: (v) => setState(() => stockFilter = v!),
+                onChanged: (v) =>
+                    setState(() => categoryFilter = v ?? 'All'),
+              ),
+              DropdownButton<String>(
+                value: stockFilter,
+                items: const ['All', 'In Stock', 'Low Stock', 'Out of Stock']
+                    .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                    .toList(),
+                onChanged: (v) => setState(() => stockFilter = v ?? 'All'),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Expanded(
-            child: ListView.builder(
-              itemCount: products.length,
-              itemBuilder: (_, i) {
-                final p = products[i];
-                return Card(
-                  child: ListTile(
-                    leading: const CircleAvatar(child: Icon(Icons.inventory_2)),
-                    title: Text(p.name),
-                    subtitle: Text('${p.id} • ${p.category} • Stock: ${p.stock}'),
-                    trailing: Wrap(
-                      children: [
-                        Text('₹${p.price.toStringAsFixed(0)}'),
-                        IconButton(onPressed: () => _editProduct(context, p), icon: const Icon(Icons.edit)),
-                        IconButton(onPressed: () {
-                          widget.data.products.remove(p);
-                          widget.data.changed();
-                          setState(() {});
-                        }, icon: const Icon(Icons.delete_outline)),
-                      ],
-                    ),
+            child: products.isEmpty
+                ? const EmptyBox(text: 'No products found.')
+                : ListView.builder(
+                    itemCount: products.length,
+                    itemBuilder: (_, i) {
+                      final p = products[i];
+                      final stockLabel = p.stock == 0
+                          ? 'Out of Stock'
+                          : p.stock <= p.lowStockLimit
+                              ? 'Low Stock'
+                              : 'In Stock';
+                      return Card(
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            child: p.imageUrl.isEmpty
+                                ? const Icon(Icons.inventory_2)
+                                : const Icon(Icons.image),
+                          ),
+                          title: Text(p.name),
+                          subtitle: Text(
+                            '${p.sku.isEmpty ? p.id : p.sku} • ${p.category} • '
+                            'Stock: ${p.stock} • $stockLabel',
+                          ),
+                          isThreeLine: true,
+                          trailing: Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                '₹${p.price.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'View',
+                                onPressed: () => _showProductDetails(context, p),
+                                icon: const Icon(Icons.visibility_outlined),
+                              ),
+                              IconButton(
+                                tooltip: 'Edit',
+                                onPressed: () => _openProductForm(
+                                  context,
+                                  product: p,
+                                ),
+                                icon: const Icon(Icons.edit_outlined),
+                              ),
+                              IconButton(
+                                tooltip: 'Delete',
+                                onPressed: () => _deleteProduct(context, p),
+                                icon: const Icon(Icons.delete_outline),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
         ],
       ),
     );
   }
 
-  void _addProduct(BuildContext context) {
+  void _showProductGuide(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => const AlertDialog(
+        title: Text('Complete Product Setup'),
+        content: SingleChildScrollView(
+          child: Text(
+            'The product form includes Basic Information, Pricing & Tax, '
+            'Inventory, Images, Description, Ingredients, How to Use, '
+            'Benefits, Variants, Bulk Pricing, FAQ and SEO fields. '
+            'All values are stored in the current admin session.',
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openProductForm(BuildContext context, {ProductItem? product}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProductEditorPage(
+          product: product,
+          categories: widget.data.categories.map((c) => c.name).toList(),
+          onSave: (saved) {
+            if (product == null) {
+              widget.data.products.add(saved);
+            }
+            widget.data.changed();
+            setState(() {});
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showProductDetails(BuildContext context, ProductItem p) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProductDetailsAdminPage(product: p),
+      ),
+    );
+  }
+
+  void _deleteProduct(BuildContext context, ProductItem p) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Product?'),
+        content: Text('Delete "${p.name}" from the product catalogue?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              widget.data.products.remove(p);
+              widget.data.changed();
+              Navigator.pop(dialogContext);
+              setState(() {});
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ProductEditorPage extends StatefulWidget {
+  const ProductEditorPage({
+    super.key,
+    this.product,
+    required this.categories,
+    required this.onSave,
+  });
+
+  final ProductItem? product;
+  final List<String> categories;
+  final ValueChanged<ProductItem> onSave;
+
+  @override
+  State<ProductEditorPage> createState() => _ProductEditorPageState();
+}
+
+class _ProductEditorPageState extends State<ProductEditorPage> {
+  final formKey = GlobalKey<FormState>();
+  int step = 0;
+
+  late final TextEditingController name;
+  late final TextEditingController sku;
+  late final TextEditingController brand;
+  late final TextEditingController barcode;
+  late final TextEditingController price;
+  late final TextEditingController mrp;
+  late final TextEditingController tax;
+  late final TextEditingController stock;
+  late final TextEditingController lowStock;
+  late final TextEditingController weight;
+  late final TextEditingController unit;
+  late final TextEditingController imageUrl;
+  late final TextEditingController shortDescription;
+  late final TextEditingController description;
+  late final TextEditingController ingredients;
+  late final TextEditingController howToUse;
+  late final TextEditingController benefits;
+  late final TextEditingController tags;
+  late final TextEditingController metaTitle;
+  late final TextEditingController metaDescription;
+  late final TextEditingController slug;
+
+  late String category;
+  late String status;
+  bool featured = false;
+  bool newArrival = false;
+  bool freeShipping = false;
+
+  final List<BulkPrice> bulkPricing = [];
+  final List<ProductVariant> variants = [];
+  final List<ProductFaq> faq = [];
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.product;
+    name = TextEditingController(text: p?.name ?? '');
+    sku = TextEditingController(text: p?.sku ?? p?.id ?? '');
+    brand = TextEditingController(text: p?.brand ?? '');
+    barcode = TextEditingController(text: p?.barcode ?? '');
+    price = TextEditingController(text: p == null ? '' : p.price.toString());
+    mrp = TextEditingController(text: p == null ? '' : p.mrp.toString());
+    tax = TextEditingController(text: p == null ? '0' : p.tax.toString());
+    stock = TextEditingController(text: p == null ? '0' : p.stock.toString());
+    lowStock = TextEditingController(
+      text: p == null ? '10' : p.lowStockLimit.toString(),
+    );
+    weight = TextEditingController(
+      text: p == null ? '' : p.weight.toString(),
+    );
+    unit = TextEditingController(text: p?.unit ?? 'Piece');
+    imageUrl = TextEditingController(text: p?.imageUrl ?? '');
+    shortDescription =
+        TextEditingController(text: p?.shortDescription ?? '');
+    description = TextEditingController(text: p?.description ?? '');
+    ingredients = TextEditingController(text: p?.ingredients ?? '');
+    howToUse = TextEditingController(text: p?.howToUse ?? '');
+    benefits = TextEditingController(text: p?.benefits ?? '');
+    tags = TextEditingController(text: p?.tags ?? '');
+    metaTitle = TextEditingController(text: p?.metaTitle ?? '');
+    metaDescription = TextEditingController(text: p?.metaDescription ?? '');
+    slug = TextEditingController(text: p?.slug ?? '');
+    category = p?.category ??
+        (widget.categories.isEmpty ? 'General' : widget.categories.first);
+    status = p?.status ?? 'Active';
+    featured = p?.featured ?? false;
+    newArrival = p?.newArrival ?? false;
+    freeShipping = p?.freeShipping ?? false;
+    bulkPricing.addAll(p?.bulkPricing ?? const []);
+    variants.addAll(p?.variants ?? const []);
+    faq.addAll(p?.faq ?? const []);
+  }
+
+  @override
+  void dispose() {
+    for (final c in [
+      name,
+      sku,
+      brand,
+      barcode,
+      price,
+      mrp,
+      tax,
+      stock,
+      lowStock,
+      weight,
+      unit,
+      imageUrl,
+      shortDescription,
+      description,
+      ingredients,
+      howToUse,
+      benefits,
+      tags,
+      metaTitle,
+      metaDescription,
+      slug,
+    ]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final editing = widget.product != null;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(editing ? 'Edit Product' : 'Add Product'),
+        actions: [
+          TextButton.icon(
+            onPressed: _save,
+            icon: const Icon(Icons.save_outlined),
+            label: const Text('Save Product'),
+          ),
+        ],
+      ),
+      body: Form(
+        key: formKey,
+        child: Stepper(
+          currentStep: step,
+          onStepContinue: () {
+            if (step < 5) {
+              setState(() => step++);
+            } else {
+              _save();
+            }
+          },
+          onStepCancel: () {
+            if (step > 0) {
+              setState(() => step--);
+            } else {
+              Navigator.pop(context);
+            }
+          },
+          controlsBuilder: (context, details) {
+            return Row(
+              children: [
+                FilledButton(
+                  onPressed: details.onStepContinue,
+                  child: Text(step == 5 ? 'Save Product' : 'Next'),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: details.onStepCancel,
+                  child: Text(step == 0 ? 'Cancel' : 'Back'),
+                ),
+              ],
+            );
+          },
+          steps: [
+            Step(
+              title: const Text('Basic Information'),
+              isActive: step >= 0,
+              content: _basicFields(),
+            ),
+            Step(
+              title: const Text('Pricing & Tax'),
+              isActive: step >= 1,
+              content: _pricingFields(),
+            ),
+            Step(
+              title: const Text('Inventory & Shipping'),
+              isActive: step >= 2,
+              content: _inventoryFields(),
+            ),
+            Step(
+              title: const Text('Description & Benefits'),
+              isActive: step >= 3,
+              content: _contentFields(),
+            ),
+            Step(
+              title: const Text('Variants & Bulk Pricing'),
+              isActive: step >= 4,
+              content: _variantFields(),
+            ),
+            Step(
+              title: const Text('SEO, FAQ & Publish'),
+              isActive: step >= 5,
+              content: _seoFields(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _basicFields() {
+    return Column(
+      children: [
+        _field(name, 'Product Name', requiredField: true),
+        _field(sku, 'SKU / Product Code'),
+        _field(brand, 'Brand / Manufacturer'),
+        _field(barcode, 'Barcode / EAN / UPC'),
+        DropdownButtonFormField<String>(
+          value: category,
+          decoration: const InputDecoration(labelText: 'Category'),
+          items: {
+            ...widget.categories,
+            'General',
+          }.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+          onChanged: (v) => setState(() => category = v ?? category),
+        ),
+        _field(
+          shortDescription,
+          'Short Description',
+          maxLines: 2,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Product image URL',
+          style: Theme.of(context).textTheme.labelLarge,
+        ),
+        _field(imageUrl, 'Image URL'),
+      ],
+    );
+  }
+
+  Widget _pricingFields() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: _field(price, 'Selling Price', number: true, requiredField: true)),
+            const SizedBox(width: 8),
+            Expanded(child: _field(mrp, 'MRP', number: true, requiredField: true)),
+          ],
+        ),
+        Row(
+          children: [
+            Expanded(child: _field(tax, 'GST / Tax %', number: true)),
+            const SizedBox(width: 8),
+            Expanded(child: _field(unit, 'Unit')),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Pricing note: selling price should normally be equal to or below MRP.',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _inventoryFields() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: _field(stock, 'Opening / Current Stock', number: true)),
+            const SizedBox(width: 8),
+            Expanded(child: _field(lowStock, 'Low Stock Alert At', number: true)),
+          ],
+        ),
+        _field(weight, 'Weight (grams)', number: true),
+        SwitchListTile(
+          value: freeShipping,
+          onChanged: (v) => setState(() => freeShipping = v),
+          title: const Text('Free Shipping'),
+        ),
+        const ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.local_shipping_outlined),
+          title: Text('Shipping'),
+          subtitle: Text(
+            'Delivery charge can be controlled from Delivery & Shipping.',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _contentFields() {
+    return Column(
+      children: [
+        _field(description, 'Full Product Description', maxLines: 5),
+        _field(ingredients, 'Ingredients / Composition', maxLines: 4),
+        _field(howToUse, 'How to Use', maxLines: 4),
+        _field(benefits, 'Benefits / Key Features', maxLines: 4),
+        _field(tags, 'Search Tags / Keywords', maxLines: 2),
+      ],
+    );
+  }
+
+  Widget _variantFields() {
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            onPressed: _addVariant,
+            icon: const Icon(Icons.add),
+            label: const Text('Add Variant'),
+          ),
+        ),
+        ...variants.asMap().entries.map(
+          (entry) => Card(
+            child: ListTile(
+              title: Text('${entry.value.name}: ${entry.value.value}'),
+              subtitle: Text(
+                'Price adjustment: ₹${entry.value.priceAdjustment.toStringAsFixed(0)}'
+                ' • Stock: ${entry.value.stock}',
+              ),
+              trailing: IconButton(
+                onPressed: () => setState(() => variants.removeAt(entry.key)),
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ),
+          ),
+        ),
+        const Divider(height: 24),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            onPressed: _addBulkPrice,
+            icon: const Icon(Icons.price_change_outlined),
+            label: const Text('Add Bulk Pricing Slab'),
+          ),
+        ),
+        ...bulkPricing.asMap().entries.map(
+          (entry) => Card(
+            child: ListTile(
+              title: Text(
+                '${entry.value.minQty} - ${entry.value.maxQty} units',
+              ),
+              subtitle: Text(
+                '₹${entry.value.price.toStringAsFixed(2)} per unit',
+              ),
+              trailing: IconButton(
+                onPressed: () => setState(
+                  () => bulkPricing.removeAt(entry.key),
+                ),
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _seoFields() {
+    return Column(
+      children: [
+        _field(slug, 'URL Slug'),
+        _field(metaTitle, 'SEO Meta Title'),
+        _field(metaDescription, 'SEO Meta Description', maxLines: 3),
+        DropdownButtonFormField<String>(
+          value: status,
+          decoration: const InputDecoration(labelText: 'Product Status'),
+          items: const ['Active', 'Draft', 'Out of Stock', 'Disabled']
+              .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+              .toList(),
+          onChanged: (v) => setState(() => status = v ?? status),
+        ),
+        SwitchListTile(
+          value: featured,
+          onChanged: (v) => setState(() => featured = v),
+          title: const Text('Featured Product'),
+        ),
+        SwitchListTile(
+          value: newArrival,
+          onChanged: (v) => setState(() => newArrival = v),
+          title: const Text('New Arrival'),
+        ),
+        const Divider(height: 24),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            onPressed: _addFaq,
+            icon: const Icon(Icons.help_outline),
+            label: const Text('Add FAQ'),
+          ),
+        ),
+        ...faq.asMap().entries.map(
+          (entry) => Card(
+            child: ListTile(
+              title: Text(entry.value.question),
+              subtitle: Text(entry.value.answer),
+              trailing: IconButton(
+                onPressed: () => setState(() => faq.removeAt(entry.key)),
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _field(
+    TextEditingController controller,
+    String label, {
+    bool number = false,
+    bool requiredField = false,
+    int maxLines = 1,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextFormField(
+        controller: controller,
+        maxLines: maxLines,
+        keyboardType: number
+            ? const TextInputType.numberWithOptions(decimal: true)
+            : TextInputType.text,
+        validator: requiredField
+            ? (v) => v == null || v.trim().isEmpty ? 'Required' : null
+            : null,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
+
+  void _addVariant() {
     final name = TextEditingController();
-    final price = TextEditingController();
-    final stock = TextEditingController();
+    final value = TextEditingController();
+    final adjustment = TextEditingController(text: '0');
+    final stockController = TextEditingController(text: '0');
+
     showFormDialog(
       context,
-      title: 'Add Product',
+      title: 'Add Product Variant',
       fields: [
-        TextField(controller: name, decoration: const InputDecoration(labelText: 'Product Name')),
-        TextField(controller: price, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Selling Price')),
-        TextField(controller: stock, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Opening Stock')),
+        TextField(controller: name, decoration: const InputDecoration(labelText: 'Variant Name (e.g. Size)')),
+        TextField(controller: value, decoration: const InputDecoration(labelText: 'Variant Value (e.g. 100g)')),
+        TextField(controller: adjustment, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Price Adjustment')),
+        TextField(controller: stockController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Stock')),
       ],
       onSave: () {
-        widget.data.products.add(ProductItem(
-          'P${DateTime.now().millisecondsSinceEpoch}',
-          name.text.isEmpty ? 'New Product' : name.text,
-          'General',
-          double.tryParse(price.text) ?? 0,
-          double.tryParse(price.text) ?? 0,
-          int.tryParse(stock.text) ?? 0,
-        ));
-        widget.data.changed();
-        setState(() {});
+        setState(() {
+          variants.add(
+            ProductVariant(
+              name.text.isEmpty ? 'Variant' : name.text,
+              value.text,
+              double.tryParse(adjustment.text) ?? 0,
+              int.tryParse(stockController.text) ?? 0,
+            ),
+          );
+        });
       },
     );
   }
 
-  void _editProduct(BuildContext context, ProductItem p) {
-    final price = TextEditingController(text: p.price.toString());
-    final stock = TextEditingController(text: p.stock.toString());
+  void _addBulkPrice() {
+    final min = TextEditingController();
+    final max = TextEditingController();
+    final slabPrice = TextEditingController();
+
     showFormDialog(
       context,
-      title: 'Edit Product',
+      title: 'Bulk Pricing Slab',
       fields: [
-        Text('Product: ${p.name}'),
-        TextField(controller: price, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Selling Price')),
-        TextField(controller: stock, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Stock')),
+        TextField(controller: min, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Minimum Quantity')),
+        TextField(controller: max, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Maximum Quantity')),
+        TextField(controller: slabPrice, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Price Per Unit')),
       ],
       onSave: () {
-        p.price = double.tryParse(price.text) ?? p.price;
-        p.stock = int.tryParse(stock.text) ?? p.stock;
-        widget.data.changed();
-        setState(() {});
+        setState(() {
+          bulkPricing.add(
+            BulkPrice(
+              int.tryParse(min.text) ?? 1,
+              int.tryParse(max.text) ?? 1,
+              double.tryParse(slabPrice.text) ?? 0,
+            ),
+          );
+        });
       },
+    );
+  }
+
+  void _addFaq() {
+    final question = TextEditingController();
+    final answer = TextEditingController();
+
+    showFormDialog(
+      context,
+      title: 'Add Product FAQ',
+      fields: [
+        TextField(controller: question, decoration: const InputDecoration(labelText: 'Question')),
+        TextField(controller: answer, maxLines: 3, decoration: const InputDecoration(labelText: 'Answer')),
+      ],
+      onSave: () {
+        setState(() => faq.add(ProductFaq(question.text, answer.text)));
+      },
+    );
+  }
+
+  void _save() {
+    if (!(formKey.currentState?.validate() ?? false)) {
+      setState(() => step = 0);
+      return;
+    }
+
+    final product = ProductItem(
+      widget.product?.id ?? 'P${DateTime.now().millisecondsSinceEpoch}',
+      name.text.trim(),
+      category,
+      double.tryParse(price.text) ?? 0,
+      double.tryParse(mrp.text) ?? 0,
+      int.tryParse(stock.text) ?? 0,
+      sku: sku.text.trim(),
+      brand: brand.text.trim(),
+      shortDescription: shortDescription.text.trim(),
+      description: description.text.trim(),
+      ingredients: ingredients.text.trim(),
+      howToUse: howToUse.text.trim(),
+      benefits: benefits.text.trim(),
+      unit: unit.text.trim().isEmpty ? 'Piece' : unit.text.trim(),
+      tax: double.tryParse(tax.text) ?? 0,
+      weight: double.tryParse(weight.text) ?? 0,
+      lowStockLimit: int.tryParse(lowStock.text) ?? 10,
+      barcode: barcode.text.trim(),
+      imageUrl: imageUrl.text.trim(),
+      status: status,
+      featured: featured,
+      newArrival: newArrival,
+      freeShipping: freeShipping,
+      metaTitle: metaTitle.text.trim(),
+      metaDescription: metaDescription.text.trim(),
+      slug: slug.text.trim(),
+      tags: tags.text.trim(),
+      bulkPricing: List<BulkPrice>.from(bulkPricing),
+      variants: List<ProductVariant>.from(variants),
+      faq: List<ProductFaq>.from(faq),
+    );
+
+    if (widget.product != null) {
+      final old = widget.product!;
+      old.name = product.name;
+      old.category = product.category;
+      old.price = product.price;
+      old.mrp = product.mrp;
+      old.stock = product.stock;
+      old.sku = product.sku;
+      old.brand = product.brand;
+      old.shortDescription = product.shortDescription;
+      old.description = product.description;
+      old.ingredients = product.ingredients;
+      old.howToUse = product.howToUse;
+      old.benefits = product.benefits;
+      old.unit = product.unit;
+      old.tax = product.tax;
+      old.weight = product.weight;
+      old.lowStockLimit = product.lowStockLimit;
+      old.barcode = product.barcode;
+      old.imageUrl = product.imageUrl;
+      old.status = product.status;
+      old.featured = product.featured;
+      old.newArrival = product.newArrival;
+      old.freeShipping = product.freeShipping;
+      old.metaTitle = product.metaTitle;
+      old.metaDescription = product.metaDescription;
+      old.slug = product.slug;
+      old.tags = product.tags;
+      old.bulkPricing = product.bulkPricing;
+      old.variants = product.variants;
+      old.faq = product.faq;
+      widget.onSave(old);
+    } else {
+      widget.onSave(product);
+    }
+
+    Navigator.pop(context);
+  }
+}
+
+class ProductDetailsAdminPage extends StatelessWidget {
+  const ProductDetailsAdminPage({super.key, required this.product});
+  final ProductItem product;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Product Details')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.name,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 6),
+                  Text('${product.category} • ${product.sku}'),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Chip(label: Text('₹${product.price.toStringAsFixed(0)}')),
+                      Chip(label: Text('MRP ₹${product.mrp.toStringAsFixed(0)}')),
+                      Chip(label: Text('Stock ${product.stock}')),
+                      Chip(label: Text(product.status)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SectionCard(
+            title: 'Basic Information',
+            child: Column(
+              children: [
+                ListTile(title: const Text('Brand'), trailing: Text(product.brand.isEmpty ? '-' : product.brand)),
+                ListTile(title: const Text('Barcode'), trailing: Text(product.barcode.isEmpty ? '-' : product.barcode)),
+                ListTile(title: const Text('Unit'), trailing: Text(product.unit)),
+                ListTile(title: const Text('Weight'), trailing: Text('${product.weight} g')),
+              ],
+            ),
+          ),
+          SectionCard(
+            title: 'Description',
+            child: Text(product.description.isEmpty ? 'Not added' : product.description),
+          ),
+          SectionCard(
+            title: 'Ingredients / Composition',
+            child: Text(product.ingredients.isEmpty ? 'Not added' : product.ingredients),
+          ),
+          SectionCard(
+            title: 'How to Use',
+            child: Text(product.howToUse.isEmpty ? 'Not added' : product.howToUse),
+          ),
+          SectionCard(
+            title: 'Benefits / Features',
+            child: Text(product.benefits.isEmpty ? 'Not added' : product.benefits),
+          ),
+          if (product.bulkPricing.isNotEmpty)
+            SectionCard(
+              title: 'Bulk Pricing',
+              child: Column(
+                children: product.bulkPricing.map((b) => ListTile(
+                  title: Text('${b.minQty} - ${b.maxQty} units'),
+                  trailing: Text('₹${b.price.toStringAsFixed(2)}'),
+                )).toList(),
+              ),
+            ),
+          if (product.variants.isNotEmpty)
+            SectionCard(
+              title: 'Variants',
+              child: Column(
+                children: product.variants.map((v) => ListTile(
+                  title: Text('${v.name}: ${v.value}'),
+                  subtitle: Text('Stock: ${v.stock}'),
+                  trailing: Text(
+                    v.priceAdjustment == 0
+                        ? 'Base'
+                        : '${v.priceAdjustment > 0 ? '+' : ''}₹${v.priceAdjustment.toStringAsFixed(0)}',
+                  ),
+                )).toList(),
+              ),
+            ),
+          if (product.faq.isNotEmpty)
+            SectionCard(
+              title: 'FAQ',
+              child: Column(
+                children: product.faq.map((f) => ExpansionTile(
+                  title: Text(f.question),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(f.answer),
+                      ),
+                    ),
+                  ],
+                )).toList(),
+              ),
+            ),
+          SectionCard(
+            title: 'SEO',
+            child: Column(
+              children: [
+                ListTile(title: const Text('Slug'), subtitle: Text(product.slug.isEmpty ? '-' : product.slug)),
+                ListTile(title: const Text('Meta Title'), subtitle: Text(product.metaTitle.isEmpty ? '-' : product.metaTitle)),
+                ListTile(title: const Text('Meta Description'), subtitle: Text(product.metaDescription.isEmpty ? '-' : product.metaDescription)),
+                ListTile(title: const Text('Tags'), subtitle: Text(product.tags.isEmpty ? '-' : product.tags)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
