@@ -61,7 +61,7 @@ class _KStoreAdminSystemState extends State<KStoreAdminSystem> {
     Icons.account_balance_wallet_outlined,
     Icons.warehouse_outlined,
     Icons.analytics_outlined,
-    Icons.marketing_outlined,
+    Icons.campaign_outlined,
     Icons.notifications_none,
     Icons.api_outlined,
     Icons.admin_panel_settings_outlined,
@@ -2818,818 +2818,451 @@ class _CustomerModuleState extends State<CustomerModule> {
     );
   }
 }
+// K - Store Admin — Remaining Modules Upgrade
+// Replace the existing OfferModule through SecurityModule block with this file.
+// This file intentionally uses local demo/in-memory data so the complete UI can
+// be tested before backend/API integration.
+
 class OfferModule extends StatefulWidget {
   const OfferModule({super.key, required this.data});
   final KStoreAdminData data;
+
   @override
   State<OfferModule> createState() => _OfferModuleState();
 }
 
 class _OfferModuleState extends State<OfferModule> {
-  @override
-  Widget build(BuildContext context) {
-    return ModuleShell(
-      actions: [
-        FilledButton.icon(onPressed: _add, icon: const Icon(Icons.add), label: const Text('Create Coupon')),
-      ],
-      child: ListView(children: widget.data.offers.map((o) => Card(
-        child: ListTile(
-          leading: const Icon(Icons.local_offer),
-          title: Text(o.code),
-          subtitle: Text('${o.description} • Value ₹${o.value.toStringAsFixed(0)}'),
-          trailing: Switch(
-            value: o.status == 'Active',
-            onChanged: (v) => setState(() => o.status = v ? 'Active' : 'Disabled'),
-          ),
-        ),
-      )).toList()),
-    );
-  }
+  final List<Map<String, dynamic>> coupons = [
+    {'code':'WELCOME100','type':'Percentage','value':10.0,'min':499.0,'max':200.0,'uses':84,'limit':500,'status':'Active','expiry':'31 Dec 2026'},
+    {'code':'SAVE200','type':'Fixed','value':200.0,'min':999.0,'max':200.0,'uses':46,'limit':200,'status':'Active','expiry':'30 Nov 2026'},
+    {'code':'FREESHIP','type':'Fixed','value':49.0,'min':499.0,'max':49.0,'uses':128,'limit':1000,'status':'Active','expiry':'15 Dec 2026'},
+    {'code':'VIP15','type':'Percentage','value':15.0,'min':1499.0,'max':500.0,'uses':19,'limit':50,'status':'Disabled','expiry':'31 Oct 2026'},
+    {'code':'FESTIVE500','type':'Fixed','value':500.0,'min':2499.0,'max':500.0,'uses':73,'limit':100,'status':'Active','expiry':'05 Jan 2027'},
+  ];
+  String query = '';
+  String filter = 'All';
 
-  void _add() {
+  List<Map<String, dynamic>> get filtered => coupons.where((c) {
+    final q = query.toLowerCase();
+    final matchQ = q.isEmpty || c['code'].toString().toLowerCase().contains(q);
+    final matchF = filter == 'All' || c['status'] == filter;
+    return matchQ && matchF;
+  }).toList();
+
+  void addCoupon() {
     final code = TextEditingController();
     final value = TextEditingController();
-    showFormDialog(
-      context,
-      title: 'Create Coupon',
-      fields: [
-        TextField(controller: code, decoration: const InputDecoration(labelText: 'Coupon Code')),
-        TextField(controller: value, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Discount Value')),
-      ],
-      onSave: () {
-        widget.data.offers.add(OfferItem(code.text.toUpperCase(), 'New offer', double.tryParse(value.text) ?? 0, 'Active'));
-        setState(() {});
-      },
-    );
+    final min = TextEditingController(text: '499');
+    String type = 'Percentage';
+    showDialog(context: context, builder: (_) => StatefulBuilder(builder: (context, setD) {
+      return AlertDialog(
+        title: const Text('Create Coupon'),
+        content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: code, decoration: const InputDecoration(labelText: 'Coupon Code')),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(value: type, decoration: const InputDecoration(labelText: 'Discount Type'), items: const [
+            DropdownMenuItem(value:'Percentage', child: Text('Percentage')),
+            DropdownMenuItem(value:'Fixed', child: Text('Fixed')),
+          ], onChanged: (v) => setD(() => type = v ?? type)),
+          TextField(controller: value, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Discount Value')),
+          TextField(controller: min, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Minimum Order')),
+        ]))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(onPressed: () {
+            if (code.text.trim().isEmpty) return;
+            setState(() => coupons.insert(0, {'code':code.text.trim().toUpperCase(),'type':type,'value':double.tryParse(value.text) ?? 0,'min':double.tryParse(min.text) ?? 0,'max':0.0,'uses':0,'limit':100,'status':'Active','expiry':'31 Dec 2026'}));
+            Navigator.pop(context);
+          }, child: const Text('Create')),
+        ],
+      );
+    }));
   }
+
+  void details(Map<String, dynamic> c) {
+    showDialog(context: context, builder: (_) => AlertDialog(
+      title: Text(c['code']),
+      content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _InfoLine('Discount', '${c['value']}${c['type'] == 'Percentage' ? '%' : ' fixed'}'),
+        _InfoLine('Minimum Order', '₹${c['min']}'),
+        _InfoLine('Usage', '${c['uses']} / ${c['limit']}'),
+        _InfoLine('Expiry', c['expiry'].toString()),
+        _InfoLine('Status', c['status'].toString()),
+        const Divider(),
+        const Text('Per-customer limit: 1'),
+        const Text('Applicable: All customers'),
+        const Text('Stacking: Not allowed'),
+      ])),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) => ModuleShell(
+    child: Column(children: [
+      _ModuleHeader(title: 'Offers & Coupons', subtitle: '${coupons.length} coupons • manage discounts and usage', actions: [
+        FilledButton.icon(onPressed: addCoupon, icon: const Icon(Icons.add), label: const Text('Add Coupon')),
+      ]),
+      Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 12), child: Row(children: [
+        Expanded(child: TextField(onChanged: (v) => setState(() => query = v), decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search coupon code...', border: OutlineInputBorder()))),
+        const SizedBox(width: 10),
+        DropdownButton<String>(value: filter, items: const ['All','Active','Disabled'].map((x) => DropdownMenuItem(value:x, child:Text(x))).toList(), onChanged:(v)=>setState(()=>filter=v!)),
+      ])),
+      Expanded(child: ListView.builder(itemCount: filtered.length, itemBuilder: (_, i) {
+        final c = filtered[i];
+        final active = c['status'] == 'Active';
+        return Card(margin: const EdgeInsets.fromLTRB(16, 4, 16, 6), child: ListTile(
+          leading: CircleAvatar(child: Icon(active ? Icons.local_offer : Icons.block)),
+          title: Text(c['code'], style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text('${c['type']}: ${c['value']}${c['type']=='Percentage'?'%':' • ₹'} • Min ₹${c['min']} • Used ${c['uses']}/${c['limit']}'),
+          trailing: Wrap(spacing: 2, children: [
+            IconButton(tooltip:'Details', onPressed:()=>details(c), icon:const Icon(Icons.visibility_outlined)),
+            IconButton(tooltip:active?'Disable':'Enable', onPressed:()=>setState(()=>c['status']=active?'Disabled':'Active'), icon:Icon(active?Icons.toggle_on:Icons.toggle_off)),
+            IconButton(tooltip:'Delete', onPressed:()=>setState(()=>coupons.remove(c)), icon:const Icon(Icons.delete_outline)),
+          ]),
+        );
+      })),
+    ]),
+  );
 }
 
-// -----------------------------------------------------------------------------
-// 6 PAYMENTS
-// -----------------------------------------------------------------------------
-
-class PaymentModule extends StatelessWidget {
+class PaymentModule extends StatefulWidget {
   const PaymentModule({super.key, required this.data});
   final KStoreAdminData data;
-
-  @override
-  Widget build(BuildContext context) {
-    return ModuleShell(
-      child: ListView(
-        children: [
-          SectionCard(
-            title: 'Payment Methods',
-            child: Column(
-              children: [
-                _toggle(context, 'Online Payment', 'Accept UPI, cards and net banking', 'Online payment'),
-                _toggle(context, 'Cash on Delivery', 'Allow COD at checkout', 'COD enabled'),
-              ],
-            ),
-          ),
-          SectionCard(
-            title: 'Payment Controls',
-            child: const Column(
-              children: [
-                ListTile(leading: Icon(Icons.currency_rupee), title: Text('Razorpay'), subtitle: Text('Gateway configuration')),
-                ListTile(leading: Icon(Icons.account_balance), title: Text('Settlement'), subtitle: Text('Track gateway settlements')),
-                ListTile(leading: Icon(Icons.receipt), title: Text('Refunds'), subtitle: Text('Review and process refunds')),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _toggle(BuildContext context, String title, String sub, String key) {
-    return SwitchListTile(
-      title: Text(title),
-      subtitle: Text(sub),
-      value: data.settings[key] ?? false,
-      onChanged: (v) { data.settings[key] = v; data.changed(); },
-    );
-  }
+  @override State<PaymentModule> createState()=>_PaymentModuleState();
+}
+class _PaymentModuleState extends State<PaymentModule> {
+  final List<Map<String,dynamic>> tx = [
+    {'id':'PAY-10021','order':'KS10021','customer':'Aarav Sharma','amount':1499.0,'method':'UPI','status':'Paid','date':'03 Oct 2026'},
+    {'id':'PAY-10020','order':'KS10020','customer':'Sana Khan','amount':899.0,'method':'Razorpay','status':'Paid','date':'03 Oct 2026'},
+    {'id':'PAY-10019','order':'KS10019','customer':'Rahul Verma','amount':2199.0,'method':'COD','status':'Pending','date':'02 Oct 2026'},
+    {'id':'PAY-10018','order':'KS10018','customer':'Neha Singh','amount':749.0,'method':'UPI','status':'Refunded','date':'02 Oct 2026'},
+    {'id':'PAY-10017','order':'KS10017','customer':'Imran Ali','amount':3299.0,'method':'Card','status':'Paid','date':'01 Oct 2026'},
+  ];
+  String filter='All';
+  void refund(Map<String,dynamic> x) { setState(()=>x['status']='Refunded'); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Refund marked for ${x['id']}'))); }
+  @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
+    _ModuleHeader(title:'Payments',subtitle:'Transactions, payment status and refunds',actions:[OutlinedButton.icon(onPressed:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Payment export prepared'))),icon:const Icon(Icons.download_outlined),label:const Text('Export'))]),
+    _StatsRow(items:[['Total','₹${tx.fold<double>(0,(s,x)=>s+(x['amount'] as double)).toStringAsFixed(0)}',Icons.payments],['Paid','${tx.where((x)=>x['status']=='Paid').length}',Icons.check_circle],['Pending','${tx.where((x)=>x['status']=='Pending').length}',Icons.schedule],['Refunded','${tx.where((x)=>x['status']=='Refunded').length}',Icons.undo]]),
+    Padding(padding:const EdgeInsets.symmetric(horizontal:16,vertical:8),child:Align(alignment:Alignment.centerRight,child:DropdownButton<String>(value:filter,items:const ['All','Paid','Pending','Refunded'].map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),onChanged:(v)=>setState(()=>filter=v!)))),
+    Expanded(child:ListView(children:tx.where((x)=>filter=='All'||x['status']==filter).map((x)=>Card(margin:const EdgeInsets.fromLTRB(16,4,16,6),child:ListTile(
+      leading:CircleAvatar(child:Icon(x['status']=='Paid'?Icons.check:x['status']=='Refunded'?Icons.undo:Icons.schedule)),
+      title:Text('${x['id']} • ${x['order']}',style:const TextStyle(fontWeight:FontWeight.bold)),
+      subtitle:Text('${x['customer']} • ${x['method']} • ${x['date']}'),
+      trailing:Wrap(children:[Text('₹${x['amount'].toStringAsFixed(0)}',style:const TextStyle(fontWeight:FontWeight.bold)),if(x['status']=='Paid')IconButton(onPressed:()=>refund(x),icon:const Icon(Icons.currency_exchange))]),
+    )).toList())),
+  ]));
 }
 
-// -----------------------------------------------------------------------------
-// 7 DELIVERY & SHIPPING
-// -----------------------------------------------------------------------------
-
-class ShippingModule extends StatelessWidget {
-  const ShippingModule({super.key, required this.data});
-  final KStoreAdminData data;
-
-  @override
-  Widget build(BuildContext context) {
-    return ModuleShell(
-      actions: [
-        FilledButton.icon(
-          onPressed: () => showFormDialog(
-            context,
-            title: 'Add Pincode Rule',
-            fields: const [
-              TextField(decoration: InputDecoration(labelText: 'Pincode / Pincode Range')),
-              TextField(decoration: InputDecoration(labelText: 'Delivery Charge')),
-            ],
-            onSave: () {},
-          ),
-          icon: const Icon(Icons.add_location_alt),
-          label: const Text('Add Pincode Rule'),
-        ),
-      ],
-      child: ListView(
-        children: [
-          SectionCard(
-            title: 'Shipping Settings',
-            child: Column(
-              children: [
-                const ListTile(title: Text('Free Delivery Threshold'), trailing: Text('₹999')),
-                const ListTile(title: Text('Default Delivery Charge'), trailing: Text('₹49')),
-                const ListTile(title: Text('Blocked Pincodes'), trailing: Text('0')),
-                const ListTile(title: Text('Courier Integration'), trailing: Text('Shiprocket / Shipmojo')),
-              ],
-            ),
-          ),
-          SectionCard(
-            title: 'Delivery Rules',
-            child: const Column(
-              children: [
-                ListTile(leading: Icon(Icons.pin_drop), title: Text('Pincode Management'), subtitle: Text('Allow, block or set charges by pincode')),
-                ListTile(leading: Icon(Icons.local_shipping), title: Text('Courier Services'), subtitle: Text('Enable and prioritize courier partners')),
-                ListTile(leading: Icon(Icons.track_changes), title: Text('AWB Tracking'), subtitle: Text('Track shipment and delivery status')),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+class ShippingModule extends StatefulWidget {
+  const ShippingModule({super.key, required this.data}); final KStoreAdminData data;
+  @override State<ShippingModule> createState()=>_ShippingModuleState();
 }
-
-// -----------------------------------------------------------------------------
-// 8 CUSTOM ORDERS
-// -----------------------------------------------------------------------------
+class _ShippingModuleState extends State<ShippingModule>{
+  final List<Map<String,dynamic>> shipments=[
+    {'awb':'AWB784512','order':'KS10021','courier':'Shiprocket','status':'In Transit','city':'Delhi','charge':49},
+    {'awb':'AWB784511','order':'KS10020','courier':'Delhivery','status':'Delivered','city':'Agra','charge':0},
+    {'awb':'AWB784510','order':'KS10019','courier':'Blue Dart','status':'Pending','city':'Jaipur','charge':79},
+    {'awb':'AWB784509','order':'KS10018','courier':'Shiprocket','status':'Out for Delivery','city':'Lucknow','charge':49},
+  ];
+  @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
+    _ModuleHeader(title:'Delivery & Shipping',subtitle:'Courier, charges, tracking and serviceability',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Add Shipping Zone',fields:['Zone Name','Pincodes','Delivery Charge','Free Delivery Above'])),icon:const Icon(Icons.add),label:const Text('Add Zone'))]),
+    _StatsRow(items:[['Shipments','${shipments.length}',Icons.local_shipping],['In Transit','${shipments.where((x)=>x['status']=='In Transit').length}',Icons.route],['Delivered','${shipments.where((x)=>x['status']=='Delivered').length}',Icons.done_all],['COD Charge','₹29',Icons.money]]),
+    Expanded(child:ListView(children:shipments.map((x)=>Card(margin:const EdgeInsets.fromLTRB(16,4,16,6),child:ListTile(
+      leading:const CircleAvatar(child:Icon(Icons.local_shipping_outlined)),title:Text('${x['awb']} • ${x['order']}',style:const TextStyle(fontWeight:FontWeight.bold)),
+      subtitle:Text('${x['courier']} • ${x['city']} • ₹${x['charge']} • ${x['status']}'),
+      trailing:PopupMenuButton<String>(onSelected:(v){if(v=='Track')ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Tracking ${x['awb']}')));},itemBuilder:(_)=>const[PopupMenuItem(value:'Track',child:Text('Track Shipment')),PopupMenuItem(value:'Label',child:Text('Download Label')),PopupMenuItem(value:'Cancel',child:Text('Cancel Shipment'))]),
+    )).toList())),
+  ]));
+}
 
 class CustomOrderModule extends StatefulWidget {
-  const CustomOrderModule({super.key, required this.data});
-  final KStoreAdminData data;
-  @override
-  State<CustomOrderModule> createState() => _CustomOrderModuleState();
+  const CustomOrderModule({super.key, required this.data}); final KStoreAdminData data;
+  @override State<CustomOrderModule> createState()=>_CustomOrderModuleState();
 }
-
-class _CustomOrderModuleState extends State<CustomOrderModule> {
-  @override
-  Widget build(BuildContext context) {
-    return ModuleShell(
-      actions: [
-        FilledButton.icon(onPressed: _add, icon: const Icon(Icons.add), label: const Text('New Custom Order')),
-      ],
-      child: ListView(children: widget.data.customOrders.map((o) => Card(
-        child: ListTile(
-          leading: const Icon(Icons.assignment),
-          title: Text(o.id),
-          subtitle: Text('${o.customer} • ${o.request}'),
-          trailing: DropdownButton<String>(
-            value: o.status,
-            items: ['New', 'Quoted', 'Approved', 'Processing', 'Completed', 'Rejected']
-                .map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
-            onChanged: (v) => setState(() => o.status = v!),
-          ),
-        ),
-      )).toList()),
-    );
-  }
-
-  void _add() {
-    final customer = TextEditingController();
-    final request = TextEditingController();
-    showFormDialog(
-      context,
-      title: 'New Custom Order',
-      fields: [
-        TextField(controller: customer, decoration: const InputDecoration(labelText: 'Customer')),
-        TextField(controller: request, decoration: const InputDecoration(labelText: 'Requirement')),
-      ],
-      onSave: () {
-        widget.data.customOrders.add(CustomOrderItem(
-          'CO${DateTime.now().millisecondsSinceEpoch}',
-          customer.text,
-          request.text,
-          'New',
-        ));
-        setState(() {});
-      },
-    );
-  }
+class _CustomOrderModuleState extends State<CustomOrderModule>{
+  final List<Map<String,dynamic>> requests=[
+    {'id':'CO-001','customer':'Aarav Sharma','request':'Custom herbal combo • 20 units','status':'New','value':0},
+    {'id':'CO-002','customer':'Sana Khan','request':'Bulk order • 100 units','status':'Quotation Sent','value':18000},
+    {'id':'CO-003','customer':'Imran Ali','request':'Private label packaging','status':'Approved','value':42500},
+    {'id':'CO-004','customer':'Neha Singh','request':'Wholesale monthly supply','status':'Processing','value':27000},
+  ];
+  void add(){final c=TextEditingController();final r=TextEditingController();showDialog(context:context,builder:(_)=>AlertDialog(title:const Text('New Custom Order'),content:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:c,decoration:const InputDecoration(labelText:'Customer')),TextField(controller:r,decoration:const InputDecoration(labelText:'Requirement'))]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancel')),FilledButton(onPressed:(){setState(()=>requests.insert(0,{'id':'CO-${requests.length+1}'.padLeft(6,'0'),'customer':c.text,'request':r.text,'status':'New','value':0});Navigator.pop(context);},child:const Text('Create'))]));}
+  @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
+    _ModuleHeader(title:'Custom Orders',subtitle:'Manage quotations, approvals and special requirements',actions:[FilledButton.icon(onPressed:add,icon:const Icon(Icons.add),label:const Text('New Request'))]),
+    Expanded(child:ListView(children:requests.map((x)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(
+      leading:CircleAvatar(child:Text(x['id'].toString().substring(3))),title:Text('${x['id']} • ${x['customer']}',style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text('${x['request']}\nStatus: ${x['status']} • Value: ₹${x['value']}'),
+      isThreeLine:true,trailing:PopupMenuButton<String>(onSelected:(v)=>setState(()=>x['status']=v),itemBuilder:(_)=>const['New','Quotation Sent','Approved','Processing','Completed','Rejected'].map((v)=>PopupMenuItem(value:v,child:Text(v))).toList()),
+    )).toList())),
+  ]));
 }
-
-// -----------------------------------------------------------------------------
-// 9 VENDORS
-// -----------------------------------------------------------------------------
 
 class VendorModule extends StatefulWidget {
-  const VendorModule({super.key, required this.data});
-  final KStoreAdminData data;
-  @override
-  State<VendorModule> createState() => _VendorModuleState();
+  const VendorModule({super.key, required this.data}); final KStoreAdminData data;
+  @override State<VendorModule> createState()=>_VendorModuleState();
 }
-
-class _VendorModuleState extends State<VendorModule> {
-  @override
-  Widget build(BuildContext context) {
-    return ModuleShell(
-      actions: [FilledButton.icon(onPressed: _add, icon: const Icon(Icons.person_add), label: const Text('Add Vendor'))],
-      child: ListView(children: widget.data.vendors.map((v) => Card(
-        child: ListTile(
-          leading: const Icon(Icons.storefront),
-          title: Text(v.name),
-          subtitle: Text('${v.id} • ${v.email}'),
-          trailing: DropdownButton<String>(
-            value: v.status,
-            items: ['Pending', 'Approved', 'Suspended', 'Rejected']
-                .map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-            onChanged: (s) => setState(() => v.status = s!),
-          ),
-        ),
-      )).toList()),
-    );
-  }
-
-  void _add() {
-    final name = TextEditingController();
-    final email = TextEditingController();
-    showFormDialog(
-      context,
-      title: 'Add Vendor',
-      fields: [
-        TextField(controller: name, decoration: const InputDecoration(labelText: 'Vendor Name')),
-        TextField(controller: email, decoration: const InputDecoration(labelText: 'Email')),
-      ],
-      onSave: () {
-        widget.data.vendors.add(VendorItem('V${DateTime.now().millisecondsSinceEpoch}', name.text, email.text, 'Pending'));
-        setState(() {});
-      },
-    );
-  }
+class _VendorModuleState extends State<VendorModule>{
+  final rows=[['V001','Herbal Care India','vendor@herbalcare.in','Verified','₹84,500'],['V002','Ayur Life','sales@ayurlife.in','Pending','₹42,800'],['V003','Nature Labs','hello@naturelabs.in','Verified','₹1,24,300'],['V004','Wellness Hub','hub@example.com','Suspended','₹18,900']];
+  String filter='All';
+  @override Widget build(BuildContext context){final list=rows.where((r)=>filter=='All'||r[3]==filter).toList();return ModuleShell(child:Column(children:[
+    _ModuleHeader(title:'Vendors',subtitle:'Vendor onboarding, verification, products and payouts',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Add Vendor',fields:['Business Name','Email','Phone','GSTIN','Address'])),icon:const Icon(Icons.add_business),label:const Text('Add Vendor'))]),
+    _StatsRow(items:[['Total','${rows.length}',Icons.storefront],['Verified','${rows.where((r)=>r[3]=='Verified').length}',Icons.verified],['Pending','1',Icons.pending],['Payout Due','₹62,400',Icons.account_balance]]),
+    Padding(padding:const EdgeInsets.symmetric(horizontal:16),child:Align(alignment:Alignment.centerRight,child:DropdownButton<String>(value:filter,items:const['All','Verified','Pending','Suspended'].map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),onChanged:(v)=>setState(()=>filter=v!)))),
+    Expanded(child:ListView(children:list.map((r)=>Card(margin:const EdgeInsets.fromLTRB(16,4,16,6),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.store)),title:Text('${r[0]} • ${r[1]}'),subtitle:Text('${r[2]} • ${r[3]}\nSales: ${r[4]}'),isThreeLine:true,trailing:IconButton(onPressed:()=>showDialog(context:context,builder:(_)=>_VendorDialog(row:r)),icon:const Icon(Icons.more_horiz)))).toList())),
+  ]));}
 }
-
-// -----------------------------------------------------------------------------
-// 10 RESELLERS
-// -----------------------------------------------------------------------------
+class _VendorDialog extends StatelessWidget{const _VendorDialog({required this.row});final List<String> row;@override Widget build(BuildContext c)=>AlertDialog(title:Text(row[1]),content:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Vendor ID: ${row[0]}'),Text('Email: ${row[2]}'),Text('Status: ${row[3]}'),Text('Sales: ${row[4]}'),const Divider(),const Text('Products: 24'),const Text('Orders: 86'),const Text('Commission: 8%')]),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Close'))]);}
 
 class ResellerModule extends StatefulWidget {
-  const ResellerModule({super.key, required this.data});
-  final KStoreAdminData data;
-  @override
-  State<ResellerModule> createState() => _ResellerModuleState();
+  const ResellerModule({super.key, required this.data}); final KStoreAdminData data;
+  @override State<ResellerModule> createState()=>_ResellerModuleState();
 }
-
-class _ResellerModuleState extends State<ResellerModule> {
-  @override
-  Widget build(BuildContext context) {
-    return ModuleShell(
-      actions: [FilledButton.icon(onPressed: _add, icon: const Icon(Icons.person_add), label: const Text('Add Reseller'))],
-      child: ListView(children: widget.data.resellers.map((r) => Card(
-        child: ListTile(
-          leading: const Icon(Icons.groups),
-          title: Text(r.name),
-          subtitle: Text('${r.id} • ${r.email}'),
-          trailing: DropdownButton<String>(
-            value: r.status,
-            items: ['Pending', 'Active', 'Suspended']
-                .map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-            onChanged: (s) => setState(() => r.status = s!),
-          ),
-        ),
-      )).toList()),
-    );
-  }
-
-  void _add() {
-    final name = TextEditingController();
-    final email = TextEditingController();
-    showFormDialog(
-      context,
-      title: 'Add Reseller',
-      fields: [
-        TextField(controller: name, decoration: const InputDecoration(labelText: 'Name')),
-        TextField(controller: email, decoration: const InputDecoration(labelText: 'Email')),
-      ],
-      onSave: () {
-        widget.data.resellers.add(ResellerItem('R${DateTime.now().millisecondsSinceEpoch}', name.text, email.text, 'Active'));
-        setState(() {});
-      },
-    );
-  }
+class _ResellerModuleState extends State<ResellerModule>{
+  final rows=[['R001','Aman Traders','aman@example.com','Active','₹48,600','12'],['R002','Sana Store','sana@example.com','Active','₹32,400','8'],['R003','Khan Wellness','khan@example.com','Pending','₹0','0'],['R004','Health Point','health@example.com','Blocked','₹18,900','5']];
+  @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
+    _ModuleHeader(title:'Resellers',subtitle:'0-investment reseller network, sales and commissions',actions:[FilledButton.icon(onPressed:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Reseller invite link copied'))),icon:const Icon(Icons.link),label:const Text('Invite Reseller'))]),
+    _StatsRow(items:[['Resellers','${rows.length}',Icons.groups],['Active','${rows.where((r)=>r[3]=='Active').length}',Icons.check_circle],['Sales','₹99,900',Icons.trending_up],['Commission','₹9,990',Icons.percent]]),
+    Expanded(child:ListView(children:rows.map((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.person)),title:Text('${r[0]} • ${r[1]}'),subtitle:Text('${r[2]} • ${r[3]}\nSales ${r[4]} • ${r[5]} orders'),isThreeLine:true,trailing:PopupMenuButton<String>(onSelected:(v)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$v selected for ${r[1]}'))),itemBuilder:(_)=>const[PopupMenuItem(value:'View Profile',child:Text('View Profile')),PopupMenuItem(value:'Approve',child:Text('Approve')),PopupMenuItem(value:'Payout',child:Text('Payout'))]))).toList())),
+  ]));
 }
-
-// -----------------------------------------------------------------------------
-// 11 AFFILIATES
-// -----------------------------------------------------------------------------
 
 class AffiliateModule extends StatefulWidget {
-  const AffiliateModule({super.key, required this.data});
-  final KStoreAdminData data;
-  @override
-  State<AffiliateModule> createState() => _AffiliateModuleState();
+  const AffiliateModule({super.key, required this.data}); final KStoreAdminData data;
+  @override State<AffiliateModule> createState()=>_AffiliateModuleState();
+}
+class _AffiliateModuleState extends State<AffiliateModule>{
+  final rows=[['AF001','Dr. Rahul','rahul@example.com','₹12,450','Active','84'],['AF002','Wellness Blogger','blog@example.com','₹8,920','Active','61'],['AF003','Ayesha Khan','ayesha@example.com','₹3,200','Pending','22'],['AF004','Health Channel','channel@example.com','₹18,700','Active','132']];
+  @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
+    _ModuleHeader(title:'Affiliates',subtitle:'Referral links, clicks, conversions and commissions',actions:[FilledButton.icon(onPressed:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Affiliate link copied'))),icon:const Icon(Icons.share_outlined),label:const Text('Create Link'))]),
+    _StatsRow(items:[['Affiliates','${rows.length}',Icons.campaign],['Clicks','${rows.fold<int>(0,(s,r)=>s+int.parse(r[5]))}',Icons.touch_app],['Conversions','73',Icons.shopping_cart],['Commission','₹43,270',Icons.currency_rupee]]),
+    Expanded(child:ListView(children:rows.map((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.campaign)),title:Text('${r[0]} • ${r[1]}'),subtitle:Text('${r[2]} • ${r[4]}\nEarnings ${r[3]} • ${r[5]} clicks'),isThreeLine:true,trailing:IconButton(onPressed:()=>showDialog(context:context,builder:(_)=>AlertDialog(title:Text(r[1]),content:Text('Referral conversion rate: 8.7%\\nPending payout: ${r[3]}\\nCommission plan: 10%'),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Close'))])),icon:const Icon(Icons.analytics_outlined)))).toList())),
+  ]));
 }
 
-class _AffiliateModuleState extends State<AffiliateModule> {
-  @override
-  Widget build(BuildContext context) {
-    return ModuleShell(
-      actions: [FilledButton.icon(onPressed: _add, icon: const Icon(Icons.add), label: const Text('Add Affiliate'))],
-      child: ListView(children: widget.data.affiliates.map((a) => Card(
-        child: ListTile(
-          leading: const Icon(Icons.campaign),
-          title: Text(a.name),
-          subtitle: Text('${a.email} • Earnings ₹${a.earnings.toStringAsFixed(0)}'),
-          trailing: Chip(label: Text(a.status)),
-        ),
-      )).toList()),
-    );
-  }
-
-  void _add() {
-    final name = TextEditingController();
-    final email = TextEditingController();
-    showFormDialog(
-      context,
-      title: 'Add Affiliate',
-      fields: [
-        TextField(controller: name, decoration: const InputDecoration(labelText: 'Name')),
-        TextField(controller: email, decoration: const InputDecoration(labelText: 'Email')),
-      ],
-      onSave: () {
-        widget.data.affiliates.add(AffiliateItem('A${DateTime.now().millisecondsSinceEpoch}', name.text, email.text, 0, 'Active'));
-        setState(() {});
-      },
-    );
-  }
+class WalletRewardModule extends StatefulWidget {
+  const WalletRewardModule({super.key, required this.data}); final KStoreAdminData data;
+  @override State<WalletRewardModule> createState()=>_WalletRewardModuleState();
 }
-
-// -----------------------------------------------------------------------------
-// 12 WALLET & REWARDS
-// -----------------------------------------------------------------------------
-
-class WalletRewardModule extends StatelessWidget {
-  const WalletRewardModule({super.key, required this.data});
-  final KStoreAdminData data;
-
-  @override
-  Widget build(BuildContext context) {
-    return ModuleShell(
-      child: ListView(
-        children: [
-          const Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              SizedBox(width: 220, child: StatCard('Wallet Balance', '₹0', Icons.account_balance_wallet)),
-              SizedBox(width: 220, child: StatCard('Reward Points', '0', Icons.stars)),
-              SizedBox(width: 220, child: StatCard('Withdrawals', '0', Icons.payments)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          SectionCard(
-            title: 'Wallet & Rewards Controls',
-            child: Column(
-              children: [
-                SwitchListTile(value: true, onChanged: (_) {}, title: const Text('Enable Customer Wallet')),
-                SwitchListTile(value: true, onChanged: (_) {}, title: const Text('Enable Reward Points')),
-                const ListTile(title: Text('Points Conversion'), trailing: Text('100 points = ₹10')),
-                const ListTile(title: Text('Minimum Withdrawal'), trailing: Text('₹500')),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+class _WalletRewardModuleState extends State<WalletRewardModule>{
+  final List<Map<String,dynamic>> tx=[
+    {'id':'WT001','user':'Aarav Sharma','type':'Credit','amount':500.0,'source':'Refund Wallet','date':'03 Oct'},
+    {'id':'WT002','user':'Sana Khan','type':'Debit','amount':200.0,'source':'Order Payment','date':'02 Oct'},
+    {'id':'WT003','user':'Imran Ali','type':'Credit','amount':150.0,'source':'Reward Points','date':'02 Oct'},
+    {'id':'WT004','user':'Neha Singh','type':'Credit','amount':1000.0,'source':'Promotional Credit','date':'01 Oct'},
+  ];
+  @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
+    _ModuleHeader(title:'Wallet & Rewards',subtitle:'Wallet balances, reward points and transactions',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Manual Wallet Adjustment',fields:['Customer ID','Amount','Credit / Debit','Reason'])),icon:const Icon(Icons.add_card),label:const Text('Adjust Wallet'))]),
+    _StatsRow(items:[['Wallet Balance','₹2,48,500',Icons.account_balance_wallet],['Rewards','1,84,200 pts',Icons.stars],['Credits Today','₹8,450',Icons.add_circle],['Debits Today','₹3,280',Icons.remove_circle]]),
+    Expanded(child:ListView(children:tx.map((x)=>Card(margin:const EdgeInsets.fromLTRB(16,4,16,6),child:ListTile(leading:CircleAvatar(child:Icon(x['type']=='Credit'?Icons.add:Icons.remove)),title:Text('${x['id']} • ${x['user']}'),subtitle:Text('${x['source']} • ${x['date']}'),trailing:Text('${x['type']=='Credit'?'+':'-'} ₹${x['amount']}'))).toList())),
+  ]));
 }
-
-// -----------------------------------------------------------------------------
-// 13 INVENTORY
-// -----------------------------------------------------------------------------
 
 class InventoryModule extends StatefulWidget {
-  const InventoryModule({super.key, required this.data});
-  final KStoreAdminData data;
-  @override
-  State<InventoryModule> createState() => _InventoryModuleState();
+  const InventoryModule({super.key, required this.data}); final KStoreAdminData data;
+  @override State<InventoryModule> createState()=>_InventoryModuleState();
 }
-
-class _InventoryModuleState extends State<InventoryModule> {
-  @override
-  Widget build(BuildContext context) {
-    return ModuleShell(
-      actions: [
-        FilledButton.icon(onPressed: _adjustStock, icon: const Icon(Icons.add_box), label: const Text('Stock Adjustment')),
-      ],
-      child: ListView(
-        children: widget.data.products.map((p) => Card(
-          child: ListTile(
-            leading: const Icon(Icons.warehouse),
-            title: Text(p.name),
-            subtitle: Text('SKU ${p.id} • Category ${p.category}'),
-            trailing: Text(
-              '${p.stock}',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: p.stock == 0 ? Colors.red : p.stock <= 10 ? Colors.orange : Colors.green,
-              ),
-            ),
-          ),
-        )).toList(),
-      ),
-    );
-  }
-
-  void _adjustStock() {
-    final sku = TextEditingController();
-    final qty = TextEditingController();
-    showFormDialog(
-      context,
-      title: 'Stock Adjustment',
-      fields: [
-        TextField(controller: sku, decoration: const InputDecoration(labelText: 'Product SKU')),
-        TextField(controller: qty, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Quantity (+/-)')),
-      ],
-      onSave: () {
-        final p = widget.data.products.where((x) => x.id == sku.text).firstOrNull;
-        if (p != null) p.stock += int.tryParse(qty.text) ?? 0;
-        setState(() {});
-      },
-    );
-  }
+class _InventoryModuleState extends State<InventoryModule>{
+  final rows=[['SKU001','Slim Trimz Powder','Wellness','124','20','₹270'],['SKU002','Soha Hair Oil 100ml','Hair Care','38','50','₹210'],['SKU003','Kirpilez Tab','Unani','8','25','₹270'],['SKU004','Hanicyst Syrup 500ml','Herbal','72','20','₹599'],['SKU005','Majoan Vajikaran Gold','Wellness','14','10','₹3,200']];
+  String q='';
+  @override Widget build(BuildContext context){final list=rows.where((r)=>r.join(' ').toLowerCase().contains(q.toLowerCase())).toList();return ModuleShell(child:Column(children:[
+    _ModuleHeader(title:'Inventory',subtitle:'Stock levels, low-stock alerts and adjustments',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Stock Adjustment',fields:['SKU / Product','Quantity','Adjustment Type','Reason'])),icon:const Icon(Icons.tune),label:const Text('Adjust Stock'))]),
+    _StatsRow(items:[['Products','${rows.length}',Icons.inventory_2],['Low Stock','${rows.where((r)=>int.parse(r[3])<=int.parse(r[4])).length}',Icons.warning],['Stock Units','256',Icons.warehouse],['Stock Value','₹1.82L',Icons.currency_rupee]]),
+    Padding(padding:const EdgeInsets.all(16),child:TextField(onChanged:(v)=>setState(()=>q=v),decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'Search SKU or product...',border:OutlineInputBorder()))),
+    Expanded(child:ListView(children:list.map((r)=>Card(margin:const EdgeInsets.fromLTRB(16,2,16,6),child:ListTile(leading:CircleAvatar(child:Icon(int.parse(r[3])<=int.parse(r[4])?Icons.warning:Icons.inventory)),title:Text('${r[0]} • ${r[1]}'),subtitle:Text('${r[2]} • Reorder at ${r[4]} units'),trailing:Text('${r[3]}\\n${r[5]}',textAlign:TextAlign.right))).toList())),
+  ]));}
 }
-
-// -----------------------------------------------------------------------------
-// 14 REPORTS & ANALYTICS
-// -----------------------------------------------------------------------------
 
 class ReportModule extends StatelessWidget {
-  const ReportModule({super.key, required this.data});
-  final KStoreAdminData data;
-
-  @override
-  Widget build(BuildContext context) {
-    return ModuleShell(
-      actions: [
-        OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.download), label: const Text('Export Report')),
-      ],
-      child: ListView(
-        children: [
-          const Text('Reports & Analytics', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              SizedBox(width: 220, child: StatCard('Gross Sales', '₹${data.sales.toStringAsFixed(0)}', Icons.trending_up)),
-              SizedBox(width: 220, child: StatCard('Orders', '${data.orders.length}', Icons.receipt_long)),
-              SizedBox(width: 220, child: StatCard('Customers', '${data.customers.length}', Icons.people)),
-              SizedBox(width: 220, child: StatCard('Low Stock', '${data.lowStock}', Icons.warning)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          SectionCard(
-            title: 'Available Reports',
-            child: Column(
-              children: const [
-                ListTile(leading: Icon(Icons.bar_chart), title: Text('Sales Report'), subtitle: Text('Daily, weekly, monthly and custom range')),
-                ListTile(leading: Icon(Icons.shopping_cart), title: Text('Product Performance'), subtitle: Text('Top selling and slow moving products')),
-                ListTile(leading: Icon(Icons.people), title: Text('Customer Report'), subtitle: Text('New, active, repeat and inactive customers')),
-                ListTile(leading: Icon(Icons.account_balance_wallet), title: Text('Payment Report'), subtitle: Text('Gateway, COD, refund and settlement data')),
-                ListTile(leading: Icon(Icons.local_shipping), title: Text('Shipping Report'), subtitle: Text('Courier and delivery performance')),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  const ReportModule({super.key, required this.data}); final KStoreAdminData data;
+  @override Widget build(BuildContext context)=>ModuleShell(child:ListView(padding:const EdgeInsets.all(16),children:[
+    _ModuleHeader(title:'Reports & Analytics',subtitle:'Business performance and downloadable reports',actions:[OutlinedButton.icon(onPressed:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Report export prepared'))),icon:const Icon(Icons.download),label:const Text('Export'))]),
+    _StatsRow(items:[['Revenue','₹4,82,450',Icons.trending_up],['Orders','486',Icons.shopping_bag],['Customers','312',Icons.people],['AOV','₹993',Icons.receipt_long]]),
+    const SizedBox(height:8),
+    _ReportCard(title:'Sales Report',icon:Icons.bar_chart,items:['Daily sales','Weekly sales','Monthly sales','Top products']),
+    _ReportCard(title:'Customer Report',icon:Icons.people_outline,items:['New customers','Repeat customers','Customer lifetime value','Inactive customers']),
+    _ReportCard(title:'Product Report',icon:Icons.inventory_2_outlined,items:['Best sellers','Low stock','Zero sales','Category performance']),
+    _ReportCard(title:'Finance Report',icon:Icons.account_balance,items:['Payments','Refunds','COD collection','Profit summary']),
+  ]));
 }
-
-// -----------------------------------------------------------------------------
-// 15 MARKETING
-// -----------------------------------------------------------------------------
 
 class MarketingModule extends StatefulWidget {
-  const MarketingModule({super.key, required this.data});
-  final KStoreAdminData data;
-  @override
-  State<MarketingModule> createState() => _MarketingModuleState();
+  const MarketingModule({super.key, required this.data}); final KStoreAdminData data;
+  @override State<MarketingModule> createState()=>_MarketingModuleState();
 }
-
-class _MarketingModuleState extends State<MarketingModule> {
-  bool flashSale = true;
-  bool freeGift = false;
-  bool freeDelivery = true;
-  bool whatsapp = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return ModuleShell(
-      actions: [
-        FilledButton.icon(onPressed: () {}, icon: const Icon(Icons.add), label: const Text('Create Campaign')),
-      ],
-      child: ListView(
-        children: [
-          SectionCard(
-            title: 'Promotions',
-            child: Column(
-              children: [
-                SwitchListTile(value: flashSale, onChanged: (v) => setState(() => flashSale = v), title: const Text('Flash Sale')),
-                SwitchListTile(value: freeGift, onChanged: (v) => setState(() => freeGift = v), title: const Text('Free Gift')),
-                SwitchListTile(value: freeDelivery, onChanged: (v) => setState(() => freeDelivery = v), title: const Text('Free Delivery')),
-              ],
-            ),
-          ),
-          SectionCard(
-            title: 'Customer Marketing',
-            child: Column(
-              children: [
-                ListTile(leading: const Icon(Icons.notifications), title: const Text('Push Campaigns'), trailing: FilledButton(onPressed: () {}, child: const Text('Create'))),
-                ListTile(leading: const Icon(Icons.message), title: const Text('WhatsApp Updates'), trailing: Switch(value: whatsapp, onChanged: (v) => setState(() => whatsapp = v))),
-                ListTile(leading: const Icon(Icons.email), title: const Text('Email Campaigns'), trailing: FilledButton(onPressed: () {}, child: const Text('Create'))),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+class _MarketingModuleState extends State<MarketingModule>{
+  final campaigns=[['Summer Wellness Sale','Push + Banner','Active','12.4K'],['Repeat Customer Offer','WhatsApp','Scheduled','4.8K'],['VIP Customer Campaign','Email','Completed','1.2K'],['New Product Launch','Push','Draft','0']];
+  @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
+    _ModuleHeader(title:'Marketing',subtitle:'Campaigns, banners, promotions and customer targeting',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Create Campaign',fields:['Campaign Name','Channel','Audience','Start Date','Message'])),icon:const Icon(Icons.add),label:const Text('Create Campaign'))]),
+    _StatsRow(items:[['Campaigns','${campaigns.length}',Icons.campaign],['Active','1',Icons.play_circle],['Reach','18.4K',Icons.visibility],['Conversions','486',Icons.shopping_cart]]),
+    Expanded(child:ListView(children:campaigns.map((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.campaign)),title:Text(r[0],style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text('${r[1]} • ${r[2]} • Reach ${r[3]}'),trailing:PopupMenuButton<String>(onSelected:(v)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$v: ${r[0]}'))),itemBuilder:(_)=>const[PopupMenuItem(value:'Edit',child:Text('Edit')),PopupMenuItem(value:'Duplicate',child:Text('Duplicate')),PopupMenuItem(value:'Pause',child:Text('Pause')),PopupMenuItem(value:'View Report',child:Text('View Report'))]))).toList())),
+  ]));
 }
-
-// -----------------------------------------------------------------------------
-// 16 NOTIFICATIONS
-// -----------------------------------------------------------------------------
 
 class NotificationModule extends StatefulWidget {
-  const NotificationModule({super.key, required this.data});
-  final KStoreAdminData data;
-  @override
-  State<NotificationModule> createState() => _NotificationModuleState();
+  const NotificationModule({super.key, required this.data}); final KStoreAdminData data;
+  @override State<NotificationModule> createState()=>_NotificationModuleState();
 }
-
-class _NotificationModuleState extends State<NotificationModule> {
-  @override
-  Widget build(BuildContext context) {
-    return ModuleShell(
-      actions: [
-        FilledButton.icon(onPressed: _add, icon: const Icon(Icons.add_alert), label: const Text('Create Notification')),
-      ],
-      child: ListView(children: widget.data.notifications.map((n) => Card(
-        child: SwitchListTile(
-          value: n.enabled,
-          onChanged: (v) => setState(() => n.enabled = v),
-          title: Text(n.title),
-          subtitle: Text(n.message),
-        ),
-      )).toList()),
-    );
-  }
-
-  void _add() {
-    final title = TextEditingController();
-    final message = TextEditingController();
-    showFormDialog(
-      context,
-      title: 'Create Notification',
-      fields: [
-        TextField(controller: title, decoration: const InputDecoration(labelText: 'Title')),
-        TextField(controller: message, decoration: const InputDecoration(labelText: 'Message')),
-      ],
-      onSave: () {
-        widget.data.notifications.add(NotificationItem(title.text, message.text, true));
-        setState(() {});
-      },
-    );
-  }
+class _NotificationModuleState extends State<NotificationModule>{
+  final templates=[['Order Confirmed','Your order #{order_id} has been confirmed.','Enabled'],['Order Shipped','Your order is on the way.','Enabled'],['Payment Failed','Payment could not be completed.','Enabled'],['Welcome','Welcome to K - Store.','Disabled']];
+  @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
+    _ModuleHeader(title:'Notifications',subtitle:'Push, SMS, email and WhatsApp notification templates',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Send Notification',fields:['Title','Message','Audience','Channel'])),icon:const Icon(Icons.send),label:const Text('Send Notification'))]),
+    _StatsRow(items:[['Templates','${templates.length}',Icons.description],['Enabled','3',Icons.notifications_active],['Sent Today','2,840',Icons.send],['Failed','18',Icons.error_outline]]),
+    Expanded(child:ListView(children:templates.map((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.notifications_none)),title:Text(r[0]),subtitle:Text('${r[1]}\\n${r[2]}'),isThreeLine:true,trailing:Switch(value:r[2]=='Enabled',onChanged:(v)=>setState(()=>r[2]=v?'Enabled':'Disabled')))).toList())),
+  ]));
 }
-
-// -----------------------------------------------------------------------------
-// 17 API & INTEGRATIONS
-// -----------------------------------------------------------------------------
 
 class ApiModule extends StatefulWidget {
-  const ApiModule({super.key, required this.data});
-  final KStoreAdminData data;
-  @override
-  State<ApiModule> createState() => _ApiModuleState();
+  const ApiModule({super.key, required this.data}); final KStoreAdminData data;
+  @override State<ApiModule> createState()=>_ApiModuleState();
 }
-
-class _ApiModuleState extends State<ApiModule> {
-  final integrations = <String, bool>{
-    'Razorpay': true,
-    'Shiprocket': false,
-    'Shipmojo': false,
-    'WhatsApp API': false,
-    'Firebase': true,
-    'Google Login': false,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    return ModuleShell(
-      actions: [
-        OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.refresh), label: const Text('Test Connections')),
-      ],
-      child: ListView(
-        children: [
-          SectionCard(
-            title: 'Integrations',
-            child: Column(
-              children: integrations.keys.map((name) => SwitchListTile(
-                value: integrations[name]!,
-                onChanged: (v) => setState(() => integrations[name] = v),
-                title: Text(name),
-                subtitle: Text(integrations[name]! ? 'Connected / Enabled' : 'Not connected'),
-              )).toList(),
-            ),
-          ),
-          SectionCard(
-            title: 'API Security',
-            child: Column(
-              children: [
-                ListTile(title: const Text('API Base URL'), subtitle: const Text('Configure production API endpoint'), trailing: IconButton(onPressed: () {}, icon: const Icon(Icons.edit))),
-                ListTile(title: const Text('API Secret'), subtitle: const Text('Stored outside the UI in production'), trailing: IconButton(onPressed: () {}, icon: const Icon(Icons.key))),
-                ListTile(title: const Text('Webhook Logs'), subtitle: const Text('Review incoming and outgoing webhooks'), trailing: FilledButton(onPressed: () {}, child: const Text('Open'))),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+class _ApiModuleState extends State<ApiModule>{
+  final integrations=[['Razorpay','Payments','Connected',Icons.payments],['Shiprocket','Shipping','Connected',Icons.local_shipping],['WhatsApp API','Messaging','Not Connected',Icons.chat],['Firebase','Notifications','Connected',Icons.notifications],['Google Login','Authentication','Connected',Icons.login]];
+  @override Widget build(BuildContext context)=>ModuleShell(child:ListView(padding:const EdgeInsets.all(16),children:[
+    _ModuleHeader(title:'API & Integrations',subtitle:'Payment, shipping, messaging and platform integrations',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Add API Integration',fields:['Provider','API Key','Secret','Webhook URL'])),icon:const Icon(Icons.add_link),label:const Text('Add Integration'))]),
+    ...integrations.map((r)=>Card(child:ListTile(leading:CircleAvatar(child:Icon(r[3] as IconData)),title:Text(r[0]),subtitle:Text('${r[1]} • ${r[2]}'),trailing:Switch(value:r[2]=='Connected',onChanged:(v)=>setState(()=>r[2]=v?'Connected':'Not Connected'))))),
+    const SizedBox(height:12),
+    _ReportCard(title:'Webhooks',icon:Icons.webhook,items:['Order created','Payment captured','Payment failed','Shipment updated','Customer registered']),
+  ]));
 }
-
-// -----------------------------------------------------------------------------
-// 18 STAFF & ROLES
-// -----------------------------------------------------------------------------
 
 class StaffRoleModule extends StatefulWidget {
-  const StaffRoleModule({super.key, required this.data});
-  final KStoreAdminData data;
-  @override
-  State<StaffRoleModule> createState() => _StaffRoleModuleState();
+  const StaffRoleModule({super.key, required this.data}); final KStoreAdminData data;
+  @override State<StaffRoleModule> createState()=>_StaffRoleModuleState();
 }
-
-class _StaffRoleModuleState extends State<StaffRoleModule> {
-  @override
-  Widget build(BuildContext context) {
-    return ModuleShell(
-      actions: [
-        FilledButton.icon(onPressed: _add, icon: const Icon(Icons.person_add), label: const Text('Add Staff')),
-      ],
-      child: ListView(
-        children: [
-          ...widget.data.staff.map((s) => Card(
-            child: SwitchListTile(
-              value: s.active,
-              onChanged: (v) => setState(() => s.active = v),
-              title: Text(s.name),
-              subtitle: Text('${s.email} • ${s.role}'),
-            ),
-          )),
-          const SectionCard(
-            title: 'Role Permissions',
-            child: Column(
-              children: [
-                ListTile(leading: Icon(Icons.security), title: Text('Super Admin'), subtitle: Text('Full access')),
-                ListTile(leading: Icon(Icons.store), title: Text('Store Manager'), subtitle: Text('Products, orders, inventory')),
-                ListTile(leading: Icon(Icons.support_agent), title: Text('Support Staff'), subtitle: Text('Customers, orders and support')),
-                ListTile(leading: Icon(Icons.campaign), title: Text('Marketing Staff'), subtitle: Text('Offers, coupons and campaigns')),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _add() {
-    final name = TextEditingController();
-    final email = TextEditingController();
-    showFormDialog(
-      context,
-      title: 'Add Staff',
-      fields: [
-        TextField(controller: name, decoration: const InputDecoration(labelText: 'Name')),
-        TextField(controller: email, decoration: const InputDecoration(labelText: 'Email')),
-      ],
-      onSave: () {
-        widget.data.staff.add(StaffItem('S${DateTime.now().millisecondsSinceEpoch}', name.text, email.text, 'Staff', true));
-        setState(() {});
-      },
-    );
-  }
+class _StaffRoleModuleState extends State<StaffRoleModule>{
+  final staff=[['ST001','Amit Kumar','amit@kstore.in','Manager',true],['ST002','Sara Khan','sara@kstore.in','Order Manager',true],['ST003','Rohit Singh','rohit@kstore.in','Inventory',true],['ST004','Neha Ali','neha@kstore.in','Support',false]];
+  @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
+    _ModuleHeader(title:'Staff & Roles',subtitle:'Team members, roles and permissions',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Add Staff',fields:['Name','Email','Phone','Role','Password'])),icon:const Icon(Icons.person_add),label:const Text('Add Staff'))]),
+    _StatsRow(items:[['Staff','${staff.length}',Icons.people],['Active','${staff.where((x)=>x[4] as bool).length}',Icons.check_circle],['Roles','6',Icons.admin_panel_settings],['Admins','2',Icons.security]]),
+    Expanded(child:ListView(children:staff.map((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:CircleAvatar(child:Text(r[1].toString().substring(0,1))),title:Text(r[1].toString()),subtitle:Text('${r[2]} • ${r[3]}'),trailing:Switch(value:r[4] as bool,onChanged:(v)=>setState(()=>r[4]=v)))).toList())),
+  ]));
 }
-
-// -----------------------------------------------------------------------------
-// 19 SETTINGS
-// -----------------------------------------------------------------------------
 
 class SettingsModule extends StatefulWidget {
-  const SettingsModule({super.key, required this.data});
-  final KStoreAdminData data;
-  @override
-  State<SettingsModule> createState() => _SettingsModuleState();
+  const SettingsModule({super.key, required this.data}); final KStoreAdminData data;
+  @override State<SettingsModule> createState()=>_SettingsModuleState();
 }
-
-class _SettingsModuleState extends State<SettingsModule> {
-  @override
-  Widget build(BuildContext context) {
-    return ModuleShell(
-      child: ListView(
-        children: [
-          SectionCard(
-            title: 'Store Settings',
-            child: Column(
-              children: widget.data.settings.entries.map((e) => SwitchListTile(
-                value: e.value,
-                onChanged: (v) {
-                  setState(() => widget.data.settings[e.key] = v);
-                },
-                title: Text(e.key),
-              )).toList(),
-            ),
-          ),
-          SectionCard(
-            title: 'Store Information',
-            child: Column(
-              children: [
-                ListTile(title: const Text('Store Name'), subtitle: const Text('K - Store'), trailing: IconButton(onPressed: () {}, icon: const Icon(Icons.edit))),
-                ListTile(title: const Text('Support Email'), subtitle: const Text('support@example.com'), trailing: IconButton(onPressed: () {}, icon: const Icon(Icons.edit))),
-                ListTile(title: const Text('Support Phone'), subtitle: const Text('+91 00000 00000'), trailing: IconButton(onPressed: () {}, icon: const Icon(Icons.edit))),
-                ListTile(title: const Text('Currency'), subtitle: const Text('INR (₹)'), trailing: IconButton(onPressed: () {}, icon: const Icon(Icons.edit))),
-              ],
-            ),
-          ),
-          SectionCard(
-            title: 'Maintenance',
-            child: Column(
-              children: [
-                ListTile(title: const Text('Backup Data'), trailing: FilledButton(onPressed: () {}, child: const Text('Backup'))),
-                ListTile(title: const Text('Restore Data'), trailing: OutlinedButton(onPressed: () {}, child: const Text('Restore'))),
-                ListTile(title: const Text('Clear Cache'), trailing: OutlinedButton(onPressed: () {}, child: const Text('Clear'))),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+class _SettingsModuleState extends State<SettingsModule>{
+  bool cod=true, online=true, autoConfirm=true, reviews=true, lowStock=true;
+  @override Widget build(BuildContext context)=>ModuleShell(child:ListView(padding:const EdgeInsets.all(16),children:[
+    _ModuleHeader(title:'Settings',subtitle:'Configure store, orders, payments, shipping and notifications'),
+    _SettingSection(title:'Store Settings',icon:Icons.store,children:[
+      const ListTile(title:Text('Store Name'),subtitle:Text('K - Store'),trailing:Icon(Icons.chevron_right)),
+      const ListTile(title:Text('Support Phone'),subtitle:Text('+91 00000 00000'),trailing:Icon(Icons.chevron_right)),
+      const ListTile(title:Text('Support Email'),subtitle:Text('support@kstore.in'),trailing:Icon(Icons.chevron_right)),
+    ]),
+    _SettingSection(title:'Order Settings',icon:Icons.shopping_bag,children:[
+      SwitchListTile(title:const Text('Auto Confirm Orders'),value:autoConfirm,onChanged:(v)=>setState(()=>autoConfirm=v)),
+      SwitchListTile(title:const Text('Allow Customer Reviews'),value:reviews,onChanged:(v)=>setState(()=>reviews=v)),
+    ]),
+    _SettingSection(title:'Payment Settings',icon:Icons.payments,children:[
+      SwitchListTile(title:const Text('Cash on Delivery'),value:cod,onChanged:(v)=>setState(()=>cod=v)),
+      SwitchListTile(title:const Text('Online Payments'),value:online,onChanged:(v)=>setState(()=>online=v)),
+    ]),
+    _SettingSection(title:'Inventory & Alerts',icon:Icons.inventory_2,children:[
+      SwitchListTile(title:const Text('Low Stock Notifications'),value:lowStock,onChanged:(v)=>setState(()=>lowStock=v)),
+      const ListTile(title:Text('Low Stock Threshold'),subtitle:Text('20 units'),trailing:Icon(Icons.chevron_right)),
+    ]),
+  ]));
 }
-
-// -----------------------------------------------------------------------------
-// 20 ACCOUNT & SECURITY
-// -----------------------------------------------------------------------------
 
 class SecurityModule extends StatefulWidget {
-  const SecurityModule({super.key, required this.data});
-  final KStoreAdminData data;
-  @override
-  State<SecurityModule> createState() => _SecurityModuleState();
+  const SecurityModule({super.key, required this.data}); final KStoreAdminData data;
+  @override State<SecurityModule> createState()=>_SecurityModuleState();
+}
+class _SecurityModuleState extends State<SecurityModule>{
+  bool twoFactor=true, loginAlerts=true, biometric=false;
+  @override Widget build(BuildContext context)=>ModuleShell(child:ListView(padding:const EdgeInsets.all(16),children:[
+    _ModuleHeader(title:'Account & Security',subtitle:'Administrator profile, password and security controls',actions:[OutlinedButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Change Password',fields:['Current Password','New Password','Confirm Password'])),icon:const Icon(Icons.lock_reset),label:const Text('Change Password'))]),
+    Card(child:ListTile(leading:const CircleAvatar(child:Text('K')),title:const Text('K - Store Admin'),subtitle:const Text('Administrator • admin@kstore.in'),trailing:IconButton(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Edit Profile',fields:['Name','Email','Phone'])),icon:const Icon(Icons.edit_outlined)))),
+    const SizedBox(height:12),
+    _SettingSection(title:'Security',icon:Icons.security,children:[
+      SwitchListTile(title:const Text('Two-Factor Authentication'),subtitle:const Text('Protect administrator login with an extra verification step'),value:twoFactor,onChanged:(v)=>setState(()=>twoFactor=v)),
+      SwitchListTile(title:const Text('Login Alerts'),subtitle:const Text('Notify when a new device signs in'),value:loginAlerts,onChanged:(v)=>setState(()=>loginAlerts=v)),
+      SwitchListTile(title:const Text('Biometric Unlock'),subtitle:const Text('Use device biometrics when supported'),value:biometric,onChanged:(v)=>setState(()=>biometric=v)),
+    ]),
+    _SettingSection(title:'Sessions',icon:Icons.devices,children:[
+      const ListTile(title:Text('Current Device'),subtitle:Text('Android • Active now'),trailing:Chip(label:Text('Current'))),
+      ListTile(title:const Text('Other Sessions'),subtitle:const Text('2 active sessions'),trailing:TextButton(onPressed:(){},child:const Text('Sign out all'))),
+    ]),
+  ]));
 }
 
-class _SecurityModuleState extends State<SecurityModule> {
-  bool twoFactor = false;
-  bool loginAlerts = true;
+// -----------------------------------------------------------------------------
+// Shared widgets for the remaining modules
+// -----------------------------------------------------------------------------
 
+class _ModuleHeader extends StatelessWidget {
+  const _ModuleHeader({required this.title, required this.subtitle, this.actions = const []});
+  final String title, subtitle;
+  final List<Widget> actions;
   @override
-  Widget build(BuildContext context) {
-    return ModuleShell(
-      child: ListView(
-        children: [
-          SectionCard(
-            title: 'Account',
-            child: Column(
-              children: [
-                const ListTile(leading: Icon(Icons.person), title: Text('Administrator'), subtitle: Text('admin@kstore.com')),
-                ListTile(leading: const Icon(Icons.password), title: const Text('Change Password'), trailing: FilledButton(onPressed: () {}, child: const Text('Change'))),
-                ListTile(leading: const Icon(Icons.logout), title: const Text('Logout Other Sessions'), trailing: OutlinedButton(onPressed: () {}, child: const Text('Logout'))),
-              ],
-            ),
-          ),
-          SectionCard(
-            title: 'Security',
-            child: Column(
-              children: [
-                SwitchListTile(value: twoFactor, onChanged: (v) => setState(() => twoFactor = v), title: const Text('Two-Factor Authentication')),
-                SwitchListTile(value: loginAlerts, onChanged: (v) => setState(() => loginAlerts = v), title: const Text('Login Alerts')),
-                ListTile(leading: const Icon(Icons.devices), title: const Text('Active Devices'), trailing: FilledButton(onPressed: () {}, child: const Text('View'))),
-                ListTile(leading: const Icon(Icons.history), title: const Text('Login Activity'), trailing: FilledButton(onPressed: () {}, child: const Text('View'))),
-              ],
-            ),
-          ),
-          const SectionCard(
-            title: 'Security Policy',
-            child: Text('Use strong passwords, restrict staff permissions, rotate API credentials and review login activity regularly.'),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+      ])),
+      ...actions,
+    ]),
+  );
+}
+
+class _StatsRow extends StatelessWidget {
+  const _StatsRow({required this.items});
+  final List<List<dynamic>> items;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 96,
+    child: ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      scrollDirection: Axis.horizontal,
+      itemCount: items.length,
+      separatorBuilder: (_, __) => const SizedBox(width: 10),
+      itemBuilder: (_, i) => SizedBox(width: 155, child: Card(
+        child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+          CircleAvatar(radius: 18, child: Icon(items[i][2] as IconData, size: 19)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(items[i][0].toString(), style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 2),
+            Text(items[i][1].toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
+          ])),
+        ])),
+      )),
+    ),
+  );
+}
+
+class _InfoLine extends StatelessWidget {
+  const _InfoLine(this.label, this.value);
+  final String label, value;
+  @override Widget build(BuildContext context)=>Padding(padding:const EdgeInsets.symmetric(vertical:5),child:Row(children:[Expanded(child:Text(label,style:const TextStyle(fontWeight:FontWeight.w600))),Text(value)]));
+}
+
+class _ReportCard extends StatelessWidget {
+  const _ReportCard({required this.title, required this.icon, required this.items});
+  final String title; final IconData icon; final List<String> items;
+  @override Widget build(BuildContext context)=>Card(margin:const EdgeInsets.only(bottom:12),child:ExpansionTile(leading:CircleAvatar(child:Icon(icon)),title:Text(title,style:const TextStyle(fontWeight:FontWeight.bold)),children:items.map((x)=>ListTile(title:Text(x),leading:const Icon(Icons.chevron_right),onTap:()=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('$x opened'))))).toList()));
+}
+
+class _SettingSection extends StatelessWidget {
+  const _SettingSection({required this.title, required this.icon, required this.children});
+  final String title; final IconData icon; final List<Widget> children;
+  @override Widget build(BuildContext context)=>Card(margin:const EdgeInsets.only(bottom:12),child:Column(children:[
+    ListTile(leading:CircleAvatar(child:Icon(icon)),title:Text(title,style:const TextStyle(fontWeight:FontWeight.bold))),
+    ...children,
+  ]));
+}
+
+class _SimpleFormDialog extends StatelessWidget {
+  const _SimpleFormDialog({required this.title, required this.fields});
+  final String title; final List<String> fields;
+  @override Widget build(BuildContext context)=>AlertDialog(
+    title:Text(title),
+    content:SizedBox(width:420,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:fields.map((f)=>Padding(padding:const EdgeInsets.only(bottom:10),child:TextField(decoration:InputDecoration(labelText:f,border:const OutlineInputBorder())))).toList()))),
+    actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(context),child:const Text('Save'))],
+  );
 }
