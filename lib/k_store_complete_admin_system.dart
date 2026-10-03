@@ -3099,45 +3099,357 @@ class _MarketingModuleState extends State<MarketingModule>{
 }
 
 class NotificationModule extends StatefulWidget {
-  const NotificationModule({super.key, required this.data}); final KStoreAdminData data;
-  @override State<NotificationModule> createState()=>_NotificationModuleState();
+  const NotificationModule({super.key, required this.data});
+
+  final KStoreAdminData data;
+
+  @override
+  State<NotificationModule> createState() => _NotificationModuleState();
 }
-class _NotificationModuleState extends State<NotificationModule>{
-  final templates=[['Order Confirmed','Your order #{order_id} has been confirmed.','Enabled'],['Order Shipped','Your order is on the way.','Enabled'],['Payment Failed','Payment could not be completed.','Enabled'],['Welcome','Welcome to K - Store.','Disabled']];
-  @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
-    _ModuleHeader(title:'Notifications',subtitle:'Push, SMS, email and WhatsApp notification templates',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Send Notification',fields:['Title','Message','Audience','Channel'])),icon:const Icon(Icons.send),label:const Text('Send Notification'))]),
-    _StatsRow(items:[['Templates','${templates.length}',Icons.description],['Enabled','3',Icons.notifications_active],['Sent Today','2,840',Icons.send],['Failed','18',Icons.error_outline]]),
-    Expanded(child:ListView(children:templates.map<Widget>((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:const CircleAvatar(child:Icon(Icons.notifications_none)),title:Text(r[0]),subtitle:Text('${r[1]}\\n${r[2]}'),isThreeLine:true,trailing:Switch(value:r[2]=='Enabled',onChanged:(v)=>setState(()=>r[2]=v?'Enabled':'Disabled')))).toList())),
-  ]));
+
+class _NotificationModuleState extends State<NotificationModule> {
+  final List<Map<String, String>> templates = [
+    {
+      'title': 'Order Confirmed',
+      'message': 'Your order #{order_id} has been confirmed.',
+      'status': 'Enabled',
+    },
+    {
+      'title': 'Order Shipped',
+      'message': 'Your order is on the way.',
+      'status': 'Enabled',
+    },
+    {
+      'title': 'Payment Failed',
+      'message': 'Payment could not be completed.',
+      'status': 'Enabled',
+    },
+    {
+      'title': 'Welcome',
+      'message': 'Welcome to K - Store.',
+      'status': 'Disabled',
+    },
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Widget> cards = [];
+
+    for (final template in templates) {
+      final bool enabled = template['status'] == 'Enabled';
+
+      cards.add(
+        Card(
+          margin: const EdgeInsets.fromLTRB(16, 5, 16, 5),
+          child: ListTile(
+            leading: const CircleAvatar(
+              child: Icon(Icons.notifications_none),
+            ),
+            title: Text(template['title'] ?? ''),
+            subtitle: Text(
+              '${template['message'] ?? ''}\n${template['status'] ?? ''}',
+            ),
+            isThreeLine: true,
+            trailing: Switch(
+              value: enabled,
+              onChanged: (value) {
+                setState(() {
+                  template['status'] = value ? 'Enabled' : 'Disabled';
+                });
+              },
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ModuleShell(
+      child: Column(
+        children: [
+          _ModuleHeader(
+            title: 'Notifications',
+            subtitle:
+                'Push, SMS, email and WhatsApp notification templates',
+            actions: [
+              FilledButton.icon(
+                onPressed: () {
+                  showDialog<void>(
+                    context: context,
+                    builder: (_) => const _SimpleFormDialog(
+                      title: 'Send Notification',
+                      fields: [
+                        'Title',
+                        'Message',
+                        'Audience',
+                        'Channel',
+                      ],
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.send),
+                label: const Text('Send Notification'),
+              ),
+            ],
+          ),
+          _StatsRow(
+            items: [
+              ['Templates', '${templates.length}', Icons.description],
+              ['Enabled', '${templates.where((x) => x['status'] == 'Enabled').length}', Icons.notifications_active],
+              ['Sent Today', '2,840', Icons.send],
+              ['Failed', '18', Icons.error_outline],
+            ],
+          ),
+          Expanded(
+            child: ListView(children: cards),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class ApiModule extends StatefulWidget {
-  const ApiModule({super.key, required this.data}); final KStoreAdminData data;
-  @override State<ApiModule> createState()=>_ApiModuleState();
+  const ApiModule({super.key, required this.data});
+
+  final KStoreAdminData data;
+
+  @override
+  State<ApiModule> createState() => _ApiModuleState();
 }
-class _ApiModuleState extends State<ApiModule>{
-  final integrations=[['Razorpay','Payments','Connected',Icons.payments],['Shiprocket','Shipping','Connected',Icons.local_shipping],['WhatsApp API','Messaging','Not Connected',Icons.chat],['Firebase','Notifications','Connected',Icons.notifications],['Google Login','Authentication','Connected',Icons.login]];
-  @override Widget build(BuildContext context)=>ModuleShell(child:ListView(padding:const EdgeInsets.all(16),children:[
-    _ModuleHeader(title:'API & Integrations',subtitle:'Payment, shipping, messaging and platform integrations',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Add API Integration',fields:['Provider','API Key','Secret','Webhook URL'])),icon:const Icon(Icons.add_link),label:const Text('Add Integration'))]),
-    ...integrations.map<Widget>((r)=>Card(child:ListTile(leading:CircleAvatar(child:Icon(r[3] as IconData)),title:Text(r[0]),subtitle:Text('${r[1]} • ${r[2]}'),trailing:Switch(value:r[2]=='Connected',onChanged:(v)=>setState(()=>r[2]=v?'Connected':'Not Connected'))))),
-    const SizedBox(height:12),
-    _ReportCard(title:'Webhooks',icon:Icons.webhook,items:['Order created','Payment captured','Payment failed','Shipment updated','Customer registered']),
-  ]));
+
+class _ApiModuleState extends State<ApiModule> {
+  final List<Map<String, dynamic>> integrations = [
+    {
+      'name': 'Razorpay',
+      'type': 'Payments',
+      'status': 'Connected',
+      'icon': Icons.payments,
+    },
+    {
+      'name': 'Shiprocket',
+      'type': 'Shipping',
+      'status': 'Connected',
+      'icon': Icons.local_shipping,
+    },
+    {
+      'name': 'WhatsApp API',
+      'type': 'Messaging',
+      'status': 'Not Connected',
+      'icon': Icons.chat,
+    },
+    {
+      'name': 'Firebase',
+      'type': 'Notifications',
+      'status': 'Connected',
+      'icon': Icons.notifications,
+    },
+    {
+      'name': 'Google Login',
+      'type': 'Authentication',
+      'status': 'Connected',
+      'icon': Icons.login,
+    },
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Widget> integrationCards = [];
+
+    for (final integration in integrations) {
+      final bool connected = integration['status'] == 'Connected';
+
+      integrationCards.add(
+        Card(
+          child: ListTile(
+            leading: CircleAvatar(
+              child: Icon(integration['icon'] as IconData),
+            ),
+            title: Text(integration['name'].toString()),
+            subtitle: Text(
+              '${integration['type']} • ${integration['status']}',
+            ),
+            trailing: Switch(
+              value: connected,
+              onChanged: (value) {
+                setState(() {
+                  integration['status'] =
+                      value ? 'Connected' : 'Not Connected';
+                });
+              },
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ModuleShell(
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _ModuleHeader(
+            title: 'API & Integrations',
+            subtitle:
+                'Payment, shipping, messaging and platform integrations',
+            actions: [
+              FilledButton.icon(
+                onPressed: () {
+                  showDialog<void>(
+                    context: context,
+                    builder: (_) => const _SimpleFormDialog(
+                      title: 'Add API Integration',
+                      fields: [
+                        'Provider',
+                        'API Key',
+                        'Secret',
+                        'Webhook URL',
+                      ],
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.add_link),
+                label: const Text('Add Integration'),
+              ),
+            ],
+          ),
+          ...integrationCards,
+          const SizedBox(height: 12),
+          _ReportCard(
+            title: 'Webhooks',
+            icon: Icons.webhook,
+            items: [
+              'Order created',
+              'Payment captured',
+              'Payment failed',
+              'Shipment updated',
+              'Customer registered',
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class StaffRoleModule extends StatefulWidget {
-  const StaffRoleModule({super.key, required this.data}); final KStoreAdminData data;
-  @override State<StaffRoleModule> createState()=>_StaffRoleModuleState();
-}
-class _StaffRoleModuleState extends State<StaffRoleModule>{
-  final staff=[['ST001','Amit Kumar','amit@kstore.in','Manager',true],['ST002','Sara Khan','sara@kstore.in','Order Manager',true],['ST003','Rohit Singh','rohit@kstore.in','Inventory',true],['ST004','Neha Ali','neha@kstore.in','Support',false]];
-  @override Widget build(BuildContext context)=>ModuleShell(child:Column(children:[
-    _ModuleHeader(title:'Staff & Roles',subtitle:'Team members, roles and permissions',actions:[FilledButton.icon(onPressed:()=>showDialog(context:context,builder:(_)=>const _SimpleFormDialog(title:'Add Staff',fields:['Name','Email','Phone','Role','Password'])),icon:const Icon(Icons.person_add),label:const Text('Add Staff'))]),
-    _StatsRow(items:[['Staff','${staff.length}',Icons.people],['Active','${staff.where((x)=>x[4] as bool).length}',Icons.check_circle],['Roles','6',Icons.admin_panel_settings],['Admins','2',Icons.security]]),
-    Expanded(child:ListView(children:staff.map<Widget>((r)=>Card(margin:const EdgeInsets.fromLTRB(16,5,16,5),child:ListTile(leading:CircleAvatar(child:Text(r[1].toString().substring(0,1))),title:Text(r[1].toString()),subtitle:Text('${r[2]} • ${r[3]}'),trailing:Switch(value:r[4] as bool,onChanged:(v)=>setState(()=>r[4]=v)))).toList())),
-  ]));
+  const StaffRoleModule({super.key, required this.data});
+
+  final KStoreAdminData data;
+
+  @override
+  State<StaffRoleModule> createState() => _StaffRoleModuleState();
 }
 
+class _StaffRoleModuleState extends State<StaffRoleModule> {
+  final List<Map<String, dynamic>> staff = [
+    {
+      'id': 'ST001',
+      'name': 'Amit Kumar',
+      'email': 'amit@kstore.in',
+      'role': 'Manager',
+      'active': true,
+    },
+    {
+      'id': 'ST002',
+      'name': 'Sara Khan',
+      'email': 'sara@kstore.in',
+      'role': 'Order Manager',
+      'active': true,
+    },
+    {
+      'id': 'ST003',
+      'name': 'Rohit Singh',
+      'email': 'rohit@kstore.in',
+      'role': 'Inventory',
+      'active': true,
+    },
+    {
+      'id': 'ST004',
+      'name': 'Neha Ali',
+      'email': 'neha@kstore.in',
+      'role': 'Support',
+      'active': false,
+    },
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Widget> staffCards = [];
+
+    for (final member in staff) {
+      final String name = member['name'].toString();
+      final bool active = member['active'] == true;
+
+      staffCards.add(
+        Card(
+          margin: const EdgeInsets.fromLTRB(16, 5, 16, 5),
+          child: ListTile(
+            leading: CircleAvatar(
+              child: Text(name.substring(0, 1)),
+            ),
+            title: Text(name),
+            subtitle: Text(
+              '${member['email']} • ${member['role']}',
+            ),
+            trailing: Switch(
+              value: active,
+              onChanged: (value) {
+                setState(() {
+                  member['active'] = value;
+                });
+              },
+            ),
+          ),
+        ),
+      );
+    }
+
+    final int activeCount =
+        staff.where((member) => member['active'] == true).length;
+
+    return ModuleShell(
+      child: Column(
+        children: [
+          _ModuleHeader(
+            title: 'Staff & Roles',
+            subtitle: 'Team members, roles and permissions',
+            actions: [
+              FilledButton.icon(
+                onPressed: () {
+                  showDialog<void>(
+                    context: context,
+                    builder: (_) => const _SimpleFormDialog(
+                      title: 'Add Staff',
+                      fields: [
+                        'Name',
+                        'Email',
+                        'Phone',
+                        'Role',
+                        'Password',
+                      ],
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.person_add),
+                label: const Text('Add Staff'),
+              ),
+            ],
+          ),
+          _StatsRow(
+            items: [
+              ['Staff', '${staff.length}', Icons.people],
+              ['Active', '$activeCount', Icons.check_circle],
+              ['Roles', '6', Icons.admin_panel_settings],
+              ['Admins', '2', Icons.security],
+            ],
+          ),
+          Expanded(
+            child: ListView(children: staffCards),
+          ),
+        ],
+      ),
+    );
+  }
+}
 class SettingsModule extends StatefulWidget {
   const SettingsModule({super.key, required this.data}); final KStoreAdminData data;
   @override State<SettingsModule> createState()=>_SettingsModuleState();
