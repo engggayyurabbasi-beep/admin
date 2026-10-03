@@ -232,9 +232,42 @@ class KStoreAdminData extends ChangeNotifier {
   ];
 
   final List<CategoryItem> categories = [
-    CategoryItem('C001', 'Ayurvedic', 24, true),
-    CategoryItem('C002', 'Unani', 18, true),
-    CategoryItem('C003', 'Herbal', 32, true),
+    CategoryItem(
+      'C001',
+      'Ayurvedic',
+      24,
+      true,
+      slug: 'ayurvedic',
+      description: 'Ayurvedic medicines, wellness and herbal products.',
+      displayOrder: 1,
+      featured: true,
+      seoTitle: 'Ayurvedic Products | K - Store',
+      seoDescription: 'Browse Ayurvedic products from K - Store.',
+    ),
+    CategoryItem(
+      'C002',
+      'Unani',
+      18,
+      true,
+      slug: 'unani',
+      description: 'Unani medicines and traditional wellness products.',
+      displayOrder: 2,
+      featured: true,
+      seoTitle: 'Unani Products | K - Store',
+      seoDescription: 'Browse Unani products from K - Store.',
+    ),
+    CategoryItem(
+      'C003',
+      'Herbal',
+      32,
+      true,
+      slug: 'herbal',
+      description: 'Herbal products and daily wellness essentials.',
+      displayOrder: 3,
+      featured: true,
+      seoTitle: 'Herbal Products | K - Store',
+      seoDescription: 'Browse herbal products from K - Store.',
+    ),
   ];
 
   final List<OrderItem> orders = [
@@ -363,10 +396,32 @@ class ProductFaq {
 }
 
 class CategoryItem {
-  CategoryItem(this.id, this.name, this.products, this.active);
+  CategoryItem(
+    this.id,
+    this.name,
+    this.products,
+    this.active, {
+    this.slug = '',
+    this.description = '',
+    this.imageUrl = '',
+    this.parentId = '',
+    this.displayOrder = 0,
+    this.featured = false,
+    this.seoTitle = '',
+    this.seoDescription = '',
+  });
+
   String id, name;
   int products;
   bool active;
+  String slug;
+  String description;
+  String imageUrl;
+  String parentId;
+  int displayOrder;
+  bool featured;
+  String seoTitle;
+  String seoDescription;
 }
 
 class OrderItem {
@@ -1556,48 +1611,539 @@ class ProductDetailsAdminPage extends StatelessWidget {
 class CategoryModule extends StatefulWidget {
   const CategoryModule({super.key, required this.data});
   final KStoreAdminData data;
+
   @override
   State<CategoryModule> createState() => _CategoryModuleState();
 }
 
 class _CategoryModuleState extends State<CategoryModule> {
+  String query = '';
+  String statusFilter = 'All';
+  String parentFilter = 'All';
+
+  List<CategoryItem> get filteredCategories {
+    final q = query.trim().toLowerCase();
+    return widget.data.categories.where((c) {
+      final textMatch = q.isEmpty ||
+          c.name.toLowerCase().contains(q) ||
+          c.id.toLowerCase().contains(q) ||
+          c.slug.toLowerCase().contains(q);
+      final statusMatch = statusFilter == 'All' ||
+          (statusFilter == 'Active' && c.active) ||
+          (statusFilter == 'Inactive' && !c.active);
+      final parentMatch = parentFilter == 'All' ||
+          (parentFilter == 'Root' && c.parentId.isEmpty) ||
+          c.parentId == parentFilter;
+      return textMatch && statusMatch && parentMatch;
+    }).toList()
+      ..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+  }
+
   @override
   Widget build(BuildContext context) {
+    final active = widget.data.categories.where((c) => c.active).length;
+    final inactive = widget.data.categories.length - active;
+    final featured = widget.data.categories.where((c) => c.featured).length;
+
     return ModuleShell(
       actions: [
-        FilledButton.icon(onPressed: _add, icon: const Icon(Icons.add), label: const Text('Add Category')),
+        OutlinedButton.icon(
+          onPressed: () => setState(() {
+            query = '';
+            statusFilter = 'All';
+            parentFilter = 'All';
+          }),
+          icon: const Icon(Icons.refresh),
+          label: const Text('Reset'),
+        ),
+        FilledButton.icon(
+          onPressed: () => _showCategoryForm(),
+          icon: const Icon(Icons.add),
+          label: const Text('Add Category'),
+        ),
       ],
-      child: ListView(
-        children: widget.data.categories.map((c) => Card(
-          child: ListTile(
-            leading: const Icon(Icons.category),
-            title: Text(c.name),
-            subtitle: Text('${c.products} products • ${c.id}'),
-            trailing: Switch(
-              value: c.active,
-              onChanged: (v) => setState(() => c.active = v),
-            ),
+      child: Column(
+        children: [
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              SizedBox(width: 210, child: StatCard('Total Categories', '${widget.data.categories.length}', Icons.category)),
+              SizedBox(width: 210, child: StatCard('Active', '$active', Icons.check_circle_outline)),
+              SizedBox(width: 210, child: StatCard('Inactive', '$inactive', Icons.pause_circle_outline)),
+              SizedBox(width: 210, child: StatCard('Featured', '$featured', Icons.star_outline)),
+            ],
           ),
-        )).toList(),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    hintText: 'Search name, ID or slug',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) => setState(() => query = value),
+                ),
+              ),
+              const SizedBox(width: 8),
+              DropdownButton<String>(
+                value: statusFilter,
+                items: const ['All', 'Active', 'Inactive']
+                    .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                    .toList(),
+                onChanged: (value) => setState(() => statusFilter = value!),
+              ),
+              const SizedBox(width: 8),
+              DropdownButton<String>(
+                value: parentFilter,
+                items: [
+                  const DropdownMenuItem(value: 'All', child: Text('All Parents')),
+                  const DropdownMenuItem(value: 'Root', child: Text('Root Categories')),
+                  ...widget.data.categories.map(
+                    (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
+                  ),
+                ],
+                onChanged: (value) => setState(() => parentFilter = value!),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: filteredCategories.isEmpty
+                ? const EmptyBox(text: 'No categories found.')
+                : ListView.builder(
+                    itemCount: filteredCategories.length,
+                    itemBuilder: (_, index) {
+                      final category = filteredCategories[index];
+                      final parentName = category.parentId.isEmpty
+                          ? 'Root category'
+                          : _parentName(category.parentId);
+                      return Card(
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            child: category.imageUrl.isEmpty
+                                ? const Icon(Icons.category)
+                                : const Icon(Icons.image_outlined),
+                          ),
+                          title: Row(
+                            children: [
+                              Flexible(child: Text(category.name)),
+                              if (category.featured) ...[
+                                const SizedBox(width: 8),
+                                const Icon(Icons.star, size: 17),
+                              ],
+                            ],
+                          ),
+                          subtitle: Text(
+                            '${category.id} • ${category.slug.isEmpty ? 'no slug' : category.slug}'
+                            '\\n${category.products} products • $parentName • Order ${category.displayOrder}',
+                          ),
+                          isThreeLine: true,
+                          onTap: () => _showCategoryDetails(category),
+                          trailing: SizedBox(
+                            width: 170,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                Switch(
+                                  value: category.active,
+                                  onChanged: (value) {
+                                    setState(() => category.active = value);
+                                    widget.data.changed();
+                                  },
+                                ),
+                                IconButton(
+                                  tooltip: 'Edit',
+                                  onPressed: () => _showCategoryForm(category),
+                                  icon: const Icon(Icons.edit_outlined),
+                                ),
+                                IconButton(
+                                  tooltip: 'Delete',
+                                  onPressed: () => _deleteCategory(category),
+                                  icon: const Icon(Icons.delete_outline),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }
 
-  void _add() {
-    final name = TextEditingController();
-    showFormDialog(
-      context,
-      title: 'Add Category',
-      fields: [TextField(controller: name, decoration: const InputDecoration(labelText: 'Category Name'))],
-      onSave: () {
-        widget.data.categories.add(CategoryItem(
-          'C${DateTime.now().millisecondsSinceEpoch}',
-          name.text.isEmpty ? 'New Category' : name.text,
-          0,
-          true,
-        ));
-        setState(() {});
+  String _parentName(String id) {
+    for (final category in widget.data.categories) {
+      if (category.id == id) return category.name;
+    }
+    return 'Unknown parent';
+  }
+
+  Future<void> _showCategoryForm([CategoryItem? existing]) async {
+    final isEdit = existing != null;
+    final name = TextEditingController(text: existing?.name ?? '');
+    final slug = TextEditingController(text: existing?.slug ?? '');
+    final description = TextEditingController(text: existing?.description ?? '');
+    final imageUrl = TextEditingController(text: existing?.imageUrl ?? '');
+    final displayOrder = TextEditingController(
+      text: '${existing?.displayOrder ?? widget.data.categories.length + 1}',
+    );
+    final seoTitle = TextEditingController(text: existing?.seoTitle ?? '');
+    final seoDescription = TextEditingController(text: existing?.seoDescription ?? '');
+
+    bool active = existing?.active ?? true;
+    bool featured = existing?.featured ?? false;
+    String parentId = existing?.parentId ?? '';
+
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: Text(isEdit ? 'Edit Category' : 'Add Category'),
+              content: SizedBox(
+                width: 560,
+                child: SingleChildScrollView(
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _categoryField(
+                          name,
+                          'Category Name',
+                          Icons.category_outlined,
+                          required: true,
+                        ),
+                        _categoryField(
+                          slug,
+                          'URL Slug',
+                          Icons.link,
+                          hint: 'example-category',
+                        ),
+                        DropdownButtonFormField<String>(
+                          value: parentId.isEmpty ? null : parentId,
+                          decoration: const InputDecoration(
+                            labelText: 'Parent Category',
+                            prefixIcon: Icon(Icons.account_tree_outlined),
+                          ),
+                          items: [
+                            const DropdownMenuItem<String>(
+                              value: '',
+                              child: Text('No Parent / Root Category'),
+                            ),
+                            ...widget.data.categories
+                                .where((c) => c.id != existing?.id)
+                                .map(
+                                  (c) => DropdownMenuItem<String>(
+                                    value: c.id,
+                                    child: Text(c.name),
+                                  ),
+                                ),
+                          ],
+                          onChanged: (value) => setDialogState(
+                            () => parentId = value ?? '',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _categoryField(
+                          description,
+                          'Category Description',
+                          Icons.description_outlined,
+                          maxLines: 3,
+                        ),
+                        _categoryField(
+                          imageUrl,
+                          'Category Image URL',
+                          Icons.image_outlined,
+                          hint: 'https://...',
+                        ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _categoryField(
+                                displayOrder,
+                                'Display Order',
+                                Icons.sort,
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: SwitchListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: const Text('Active'),
+                                value: active,
+                                onChanged: (value) =>
+                                    setDialogState(() => active = value),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Featured Category'),
+                          subtitle: const Text('Show this category in featured/category sections'),
+                          value: featured,
+                          onChanged: (value) =>
+                              setDialogState(() => featured = value),
+                        ),
+                        const Divider(height: 24),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'SEO Settings',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _categoryField(
+                          seoTitle,
+                          'SEO Title',
+                          Icons.title,
+                          maxLength: 70,
+                        ),
+                        _categoryField(
+                          seoDescription,
+                          'SEO Meta Description',
+                          Icons.notes,
+                          maxLines: 3,
+                          maxLength: 160,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton.icon(
+                  onPressed: () {
+                    if (!(formKey.currentState?.validate() ?? false)) return;
+
+                    final categoryName = name.text.trim();
+                    final generatedSlug = slug.text.trim().isEmpty
+                        ? _slugify(categoryName)
+                        : _slugify(slug.text.trim());
+
+                    if (isEdit) {
+                      existing!
+                        ..name = categoryName
+                        ..slug = generatedSlug
+                        ..description = description.text.trim()
+                        ..imageUrl = imageUrl.text.trim()
+                        ..parentId = parentId
+                        ..displayOrder = int.tryParse(displayOrder.text) ?? 0
+                        ..active = active
+                        ..featured = featured
+                        ..seoTitle = seoTitle.text.trim()
+                        ..seoDescription = seoDescription.text.trim();
+                    } else {
+                      widget.data.categories.add(
+                        CategoryItem(
+                          'C${DateTime.now().millisecondsSinceEpoch}',
+                          categoryName,
+                          0,
+                          active,
+                          slug: generatedSlug,
+                          description: description.text.trim(),
+                          imageUrl: imageUrl.text.trim(),
+                          parentId: parentId,
+                          displayOrder: int.tryParse(displayOrder.text) ?? 0,
+                          featured: featured,
+                          seoTitle: seoTitle.text.trim(),
+                          seoDescription: seoDescription.text.trim(),
+                        ),
+                      );
+                    }
+
+                    widget.data.changed();
+                    setState(() {});
+                    Navigator.pop(dialogContext);
+                  },
+                  icon: const Icon(Icons.save_outlined),
+                  label: Text(isEdit ? 'Update Category' : 'Save Category'),
+                ),
+              ],
+            );
+          },
+        );
       },
+    );
+
+    name.dispose();
+    slug.dispose();
+    description.dispose();
+    imageUrl.dispose();
+    displayOrder.dispose();
+    seoTitle.dispose();
+    seoDescription.dispose();
+  }
+
+  Widget _categoryField(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    bool required = false,
+    String? hint,
+    int maxLines = 1,
+    int? maxLength,
+    TextInputType? keyboardType,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextFormField(
+        controller: controller,
+        maxLines: maxLines,
+        maxLength: maxLength,
+        keyboardType: keyboardType,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          prefixIcon: Icon(icon),
+        ),
+        validator: required
+            ? (value) =>
+                value == null || value.trim().isEmpty ? 'Required' : null
+            : null,
+      ),
+    );
+  }
+
+  String _slugify(String value) {
+    return value
+        .toLowerCase()
+        .trim()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'^-|-$'), '');
+  }
+
+  Future<void> _deleteCategory(CategoryItem category) async {
+    final hasChildren = widget.data.categories.any(
+      (c) => c.parentId == category.id,
+    );
+
+    if (hasChildren) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This category has subcategories. Move them before deleting.'),
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Category?'),
+        content: Text(
+          'Delete "${category.name}"? This action removes the category from the admin list.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => widget.data.categories.remove(category));
+      widget.data.changed();
+    }
+  }
+
+  void _showCategoryDetails(CategoryItem category) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const CircleAvatar(child: Icon(Icons.category)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        category.name,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        _showCategoryForm(category);
+                      },
+                      icon: const Icon(Icons.edit),
+                    ),
+                  ],
+                ),
+                const Divider(height: 28),
+                _detailRow('Category ID', category.id),
+                _detailRow('Slug', category.slug),
+                _detailRow('Products', '${category.products}'),
+                _detailRow('Parent', category.parentId.isEmpty ? 'Root category' : _parentName(category.parentId)),
+                _detailRow('Display Order', '${category.displayOrder}'),
+                _detailRow('Status', category.active ? 'Active' : 'Inactive'),
+                _detailRow('Featured', category.featured ? 'Yes' : 'No'),
+                _detailRow('Image URL', category.imageUrl.isEmpty ? 'Not set' : category.imageUrl),
+                const SizedBox(height: 12),
+                Text('Description', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 6),
+                Text(category.description.isEmpty ? 'No description added.' : category.description),
+                const SizedBox(height: 16),
+                Text('SEO', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 6),
+                _detailRow('SEO Title', category.seoTitle.isEmpty ? 'Not set' : category.seoTitle),
+                _detailRow(
+                  'SEO Description',
+                  category.seoDescription.isEmpty ? 'Not set' : category.seoDescription,
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.inventory_2_outlined),
+                  label: const Text('Manage Products in Category'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 130, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+          Expanded(child: Text(value)),
+        ],
+      ),
     );
   }
 }
