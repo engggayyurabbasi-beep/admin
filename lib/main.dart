@@ -1,5 +1,6 @@
 import 'admin_home_page.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() => runApp(const KStoreAdmin());
 
@@ -8,6 +9,15 @@ class KStoreAdmin extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (_restoringSession) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'K - Store Admin Panel',
@@ -48,7 +58,43 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     super.dispose();
   }
 
-  void login() {
+  bool _restoringSession = true;
+  static const Duration _sessionDuration = Duration(days: 7);
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreLoginSession();
+  }
+
+  Future<void> _restoreLoginSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final expiry = prefs.getInt('admin_session_expiry') ?? 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    if (expiry > now && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminHomePage()),
+        );
+      });
+      setState(() => _restoringSession = false);
+      return;
+    }
+
+    if (expiry != 0) {
+      await prefs.remove('admin_session_expiry');
+      await prefs.remove('admin_login_id');
+    }
+
+    if (mounted) {
+      setState(() => _restoringSession = false);
+    }
+  }
+
+  Future<void> login() async {
     if (!formKey.currentState!.validate()) return;
 
     const String adminLoginId = 'admin@kstore.com';
