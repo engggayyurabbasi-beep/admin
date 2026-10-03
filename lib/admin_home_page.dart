@@ -1,5 +1,6 @@
 import 'dashboard_page.dart';
 import 'add_product_page.dart';
+import 'category_page.dart';
 import 'package:flutter/material.dart';
 
 class AdminHomePage extends StatelessWidget {
@@ -442,6 +443,7 @@ class AdminHomePage extends StatelessWidget {
       return;
     }
 
+if (title == 'Categories') {      Navigator.push(        context,        MaterialPageRoute(          builder: (context) => const CategoryPage(),        ),      );      return;    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('$title page will be connected next.'),
