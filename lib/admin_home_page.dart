@@ -14,6 +14,23 @@ class AdminHomePage extends StatefulWidget {
 class _AdminHomePageState extends State<AdminHomePage> {
   final store = AdminStore();
   int index = 0;
+  final List<int> _pageHistory = [0];
+
+  void _openPage(int nextIndex) {
+    if (nextIndex == index) return;
+    setState(() {
+      _pageHistory.add(nextIndex);
+      index = nextIndex;
+    });
+  }
+
+  void _goBackOnePage() {
+    if (_pageHistory.length <= 1) return;
+    setState(() {
+      _pageHistory.removeLast();
+      index = _pageHistory.last;
+    });
+  }
 
   final menus = const [
     ['Dashboard', Icons.dashboard_outlined],
@@ -61,7 +78,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
       case 18: return SettingsPage(store);
     case 20: return const ProductManagementPage();
       case 19: return SecurityPage(store);
-      default: return DashboardPage(store, (i) => setState(() => index = i));
+      default: return DashboardPage(store, _openPage);
     }
   }
 
@@ -69,6 +86,10 @@ class _AdminHomePageState extends State<AdminHomePage> {
     canPop: false,
     onPopInvokedWithResult: (didPop, result) {
       if (didPop) return;
+      if (_pageHistory.length > 1) {
+        _goBackOnePage();
+        return;
+      }
       showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
@@ -112,7 +133,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
               selectedTileColor: const Color(0xFFE8F7F0),
               leading: Icon(menus[i][1] as IconData),
               title: Text(menus[i][0] as String),
-              onTap: () { Navigator.pop(context); setState(() => index = i); },
+              onTap: () { Navigator.pop(context); _openPage(i); },
             );
           })),
         ])),
@@ -121,12 +142,12 @@ class _AdminHomePageState extends State<AdminHomePage> {
         backgroundColor: Colors.white, foregroundColor: Colors.black87, elevation: 0,
         title: Text(menus[index][0] as String, style: const TextStyle(fontWeight: FontWeight.w800)),
         actions: [
-          IconButton(onPressed: () => setState(() => index = 15),
+          IconButton(onPressed: () => _openPage(15),
             icon: Badge(isLabelVisible: store.unread > 0, label: Text('${store.unread}'),
               child: const Icon(Icons.notifications_none))),
           const SizedBox(width: 8),
           PopupMenuButton<String>(
-            onSelected: (v) => setState(() => index = v == 'security' ? 19 : 18),
+          onSelected: (v) => _openPage(v == 'security' ? 19 : 18),
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'security', child: Text('Account & Security')),
               PopupMenuItem(value: 'settings', child: Text('Settings')),
