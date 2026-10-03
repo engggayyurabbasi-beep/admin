@@ -880,9 +880,25 @@ class _AddProductPageState extends State<AddProductPage> {
       success: true,
     );
 
+    final productData = <String, dynamic>{
+      'id': DateTime.now().microsecondsSinceEpoch.toString(),
+      'name': name.text.trim(),
+      'brand': brand.text.trim(),
+      'sku': sku.text.trim(),
+      'price': double.tryParse(price.text.trim()) ?? 0,
+      'mrp': double.tryParse(mrp.text.trim()) ?? 0,
+      'cost': double.tryParse(cost.text.trim()) ?? 0,
+      'stock': int.tryParse(stock.text.trim()) ?? 0,
+      'category': category ?? '',
+      'subCategory': subCategory ?? '',
+      'stockStatus': stockStatus,
+      'shortDescription': shortDescription.text.trim(),
+      'description': description.text.trim(),
+    };
+
     Future.delayed(const Duration(milliseconds: 700), () {
       if (mounted) {
-        Navigator.pop(context);
+        Navigator.pop(context, productData);
       }
     });
   }
