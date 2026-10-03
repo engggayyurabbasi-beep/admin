@@ -230,6 +230,7 @@ class DashboardPage extends StatelessWidget {
       ['Notifications',Icons.notifications_none_outlined],['API & Integrations',Icons.api_outlined],
       ['Staff & Roles',Icons.admin_panel_settings_outlined],['Settings',Icons.settings_outlined],
       ['Account & Security',Icons.security_outlined],
+      ['Products',Icons.inventory_2_outlined],
     ];
     return PageFrame(title:'K - Store Dashboard', action:null, children:[
       Container(width:double.infinity,padding:const EdgeInsets.all(22),
