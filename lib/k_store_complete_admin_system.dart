@@ -61,7 +61,7 @@ class _KStoreAdminSystemState extends State<KStoreAdminSystem> {
     Icons.account_balance_wallet_outlined,
     Icons.warehouse_outlined,
     Icons.analytics_outlined,
-    Icons.marketing_outlined,
+    Icons.campaign_outlined,
     Icons.notifications_none,
     Icons.api_outlined,
     Icons.admin_panel_settings_outlined,
