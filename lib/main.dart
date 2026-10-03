@@ -9,15 +9,6 @@ class KStoreAdmin extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (_restoringSession) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'K - Store Admin Panel',
@@ -50,20 +41,13 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
   static const pink = Color(0xFFF20B4F);
   static const dark = Color(0xFF111318);
   static const grey = Color(0xFF6E7480);
-
-  @override
-  void dispose() {
-    user.dispose();
-    pass.dispose();
-    super.dispose();
-  }
-
-  bool _restoringSession = true;
   static const Duration _sessionDuration = Duration(days: 7);
+  bool _restoringSession = true;
 
   @override
   void initState() {
     super.initState();
+    user.text = 'admin@kstore.com';
     _restoreLoginSession();
   }
 
@@ -72,7 +56,9 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     final expiry = prefs.getInt('admin_session_expiry') ?? 0;
     final now = DateTime.now().millisecondsSinceEpoch;
 
-    if (expiry > now && mounted) {
+    if (expiry > now) {
+      if (!mounted) return;
+      setState(() => _restoringSession = false);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         Navigator.pushReplacement(
@@ -80,18 +66,24 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
           MaterialPageRoute(builder: (_) => const AdminHomePage()),
         );
       });
-      setState(() => _restoringSession = false);
       return;
     }
 
     if (expiry != 0) {
       await prefs.remove('admin_session_expiry');
-      await prefs.remove('admin_login_id');
     }
 
     if (mounted) {
       setState(() => _restoringSession = false);
     }
+  }
+
+
+  @override
+  void dispose() {
+    user.dispose();
+    pass.dispose();
+    super.dispose();
   }
 
   Future<void> login() async {
@@ -112,6 +104,14 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
         ),
       );
       return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    if (remember) {
+      final expiry = DateTime.now().add(_sessionDuration).millisecondsSinceEpoch;
+      await prefs.setInt('admin_session_expiry', expiry);
+    } else {
+      await prefs.remove('admin_session_expiry');
     }
 
     setState(() => loading = true);
@@ -202,6 +202,11 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_restoringSession) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
     return Scaffold(
       body: Stack(
         children: [

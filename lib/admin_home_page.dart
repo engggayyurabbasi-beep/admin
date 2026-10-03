@@ -65,41 +65,35 @@ class _AdminHomePageState extends State<AdminHomePage> {
     }
   }
 
-  @override Widget build(BuildContext context) => AnimatedBuilder(
-    animation: store,
-    builder: (_, __) => PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop || !mounted) return;
-
-        if (index != 0) {
-          setState(() => index = 0);
-          return;
+  @override Widget build(BuildContext context) => PopScope(
+    canPop: false,
+    onPopInvokedWithResult: (didPop, result) {
+      if (didPop) return;
+      showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Exit Admin Panel?'),
+          content: const Text('Do you want to close the K - Store Admin Panel?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Exit'),
+            ),
+          ],
+        ),
+      ).then((shouldExit) {
+        if (shouldExit == true) {
+          SystemNavigator.pop();
         }
-
-        showDialog<bool>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: const Text('Exit Admin Panel?'),
-            content: const Text('Do you want to close the K - Store Admin Panel?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('Exit'),
-              ),
-            ],
-          ),
-        ).then((shouldExit) {
-          if (shouldExit == true && mounted) {
-            SystemNavigator.pop();
-          }
-        });
-      },
-      child: Scaffold(
+      });
+    },
+    child: AnimatedBuilder(
+    animation: store,
+    builder: (_, __) => Scaffold(
       backgroundColor: const Color(0xFFF6F7F9),
       drawer: Drawer(
         child: SafeArea(child: Column(children: [
@@ -144,7 +138,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
       ),
       body: page(),
     ),
-      ),
     ),
   );
 }
