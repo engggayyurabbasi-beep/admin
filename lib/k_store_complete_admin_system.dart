@@ -444,6 +444,7 @@ class _KStoreAdminSystemState extends State<KStoreAdminSystem> {
         return DashboardModule(data: data, onOpen: _select);
     }
   }
+}
 
 // -----------------------------------------------------------------------------
 // HOME / DASHBOARD
