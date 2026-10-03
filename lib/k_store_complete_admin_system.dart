@@ -1606,54 +1606,441 @@ class _CategoryModuleState extends State<CategoryModule> {
 // 3 ORDERS
 // -----------------------------------------------------------------------------
 
+// Orders Module upgrade for K Store Admin.
+// Replace the existing OrderModule class block only.
+// It uses the existing KStoreAdminData and OrderItem models.
+
 class OrderModule extends StatefulWidget {
   const OrderModule({super.key, required this.data});
+
   final KStoreAdminData data;
+
   @override
   State<OrderModule> createState() => _OrderModuleState();
 }
 
 class _OrderModuleState extends State<OrderModule> {
-  String filter = 'All';
+  final TextEditingController _searchController = TextEditingController();
+
+  String _statusFilter = 'All';
+  String _paymentFilter = 'All';
+  String _sortBy = 'Newest';
+
+  final List<String> _statuses = const [
+    'Pending',
+    'Processing',
+    'Shipped',
+    'Delivered',
+    'Cancelled',
+  ];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<OrderItem> get _filteredOrders {
+    final query = _searchController.text.trim().toLowerCase();
+
+    final result = widget.data.orders.where((order) {
+      final matchesSearch = query.isEmpty ||
+          order.id.toLowerCase().contains(query) ||
+          order.customer.toLowerCase().contains(query);
+
+      final matchesStatus =
+          _statusFilter == 'All' || order.status == _statusFilter;
+
+      final matchesPayment =
+          _paymentFilter == 'All' || order.payment == _paymentFilter;
+
+      return matchesSearch && matchesStatus && matchesPayment;
+    }).toList();
+
+    if (_sortBy == 'Amount: High') {
+      result.sort((a, b) => b.amount.compareTo(a.amount));
+    } else if (_sortBy == 'Amount: Low') {
+      result.sort((a, b) => a.amount.compareTo(b.amount));
+    }
+
+    return result;
+  }
+
+  double _totalAmount(List<OrderItem> orders) {
+    return orders.fold(0, (sum, order) => sum + order.amount);
+  }
+
+  int _countByStatus(String status) {
+    return widget.data.orders.where((o) => o.status == status).length;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final list = filter == 'All'
-        ? widget.data.orders
-        : widget.data.orders.where((o) => o.status == filter).toList();
+    final orders = _filteredOrders;
+    final total = _totalAmount(orders);
 
     return ModuleShell(
+      actions: [
+        OutlinedButton.icon(
+          onPressed: _showFilterDialog,
+          icon: const Icon(Icons.filter_alt_outlined),
+          label: const Text('Filters'),
+        ),
+        FilledButton.icon(
+          onPressed: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Order export is ready for integration.')),
+            );
+          },
+          icon: const Icon(Icons.download_outlined),
+          label: const Text('Export'),
+        ),
+      ],
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          _buildStats(),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _searchController,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchController.text.isEmpty
+                  ? null
+                  : IconButton(
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {});
+                      },
+                      icon: const Icon(Icons.clear),
+                    ),
+              hintText: 'Search Order ID or customer',
+              border: const OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 10),
           Wrap(
             spacing: 8,
-            children: ['All', 'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
-                .map((s) => ChoiceChip(label: Text(s), selected: filter == s, onSelected: (_) => setState(() => filter = s)))
-                .toList(),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: ListView(children: list.map((o) => Card(
-              child: ListTile(
-                leading: const Icon(Icons.receipt_long),
-                title: Text(o.id),
-                subtitle: Text('${o.customer} • ${o.payment}'),
-                trailing: DropdownButton<String>(
-                  value: o.status,
-                  items: ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
-                      .map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
-                  onChanged: (v) => setState(() => o.status = v!),
+            runSpacing: 8,
+            children: [
+              ...['All', ..._statuses].map(
+                (status) => ChoiceChip(
+                  label: Text(status),
+                  selected: _statusFilter == status,
+                  onSelected: (_) => setState(() => _statusFilter = status),
                 ),
               ),
-            )).toList()),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Text(
+                '${orders.length} orders • ₹${total.toStringAsFixed(0)}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const Spacer(),
+              DropdownButton<String>(
+                value: _sortBy,
+                items: const [
+                  DropdownMenuItem(value: 'Newest', child: Text('Newest')),
+                  DropdownMenuItem(
+                    value: 'Amount: High',
+                    child: Text('Amount: High'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Amount: Low',
+                    child: Text('Amount: Low'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _sortBy = value);
+                  }
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: orders.isEmpty
+                ? const EmptyBox(
+                    title: 'No orders found',
+                    message: 'Try changing the search or filters.',
+                  )
+                : ListView.separated(
+                    itemCount: orders.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      return _orderCard(orders[index]);
+                    },
+                  ),
           ),
         ],
       ),
     );
   }
-}
 
-// -----------------------------------------------------------------------------
+  Widget _buildStats() {
+    final cards = [
+      ('All', widget.data.orders.length, Icons.receipt_long_outlined),
+      ('Pending', _countByStatus('Pending'), Icons.schedule_outlined),
+      ('Processing', _countByStatus('Processing'), Icons.sync_outlined),
+      ('Shipped', _countByStatus('Shipped'), Icons.local_shipping_outlined),
+      ('Delivered', _countByStatus('Delivered'), Icons.check_circle_outline),
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: cards
+            .map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: SizedBox(
+                  width: 150,
+                  child: StatCard(
+                    title: item.$1,
+                    value: '${item.$2}',
+                    icon: item.$3,
+                  ),
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _orderCard(OrderItem order) {
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _showOrderDetails(order),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.receipt_long_outlined),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      order.id,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  _statusChip(order.status),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                order.customer,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 5),
+              Row(
+                children: [
+                  Expanded(child: Text('Payment: ${order.payment}')),
+                  Text(
+                    '₹${order.amount.toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _showOrderDetails(order),
+                    icon: const Icon(Icons.visibility_outlined, size: 18),
+                    label: const Text('Details'),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: order.status,
+                      isDense: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Status',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _statuses
+                          .map(
+                            (status) => DropdownMenuItem(
+                              value: status,
+                              child: Text(status),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() => order.status = value);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '${order.id} updated to $value',
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _statusChip(String status) {
+    return Chip(
+      label: Text(status),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  void _showOrderDetails(OrderItem order) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('Order ${order.id}'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _detailRow('Customer', order.customer),
+                  _detailRow('Order ID', order.id),
+                  _detailRow('Amount', '₹${order.amount.toStringAsFixed(2)}'),
+                  _detailRow('Payment', order.payment),
+                  _detailRow('Status', order.status),
+                  const Divider(height: 28),
+                  const Text(
+                    'Order Timeline',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  _timelineItem('Order placed', true),
+                  _timelineItem('Processing', order.status != 'Pending'),
+                  _timelineItem(
+                    'Shipped',
+                    order.status == 'Shipped' || order.status == 'Delivered',
+                  ),
+                  _timelineItem('Delivered', order.status == 'Delivered'),
+                  if (order.status == 'Cancelled')
+                    _timelineItem('Cancelled', true),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+
+  Widget _timelineItem(String title, bool active) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(
+            active ? Icons.check_circle : Icons.radio_button_unchecked,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Text(title),
+        ],
+      ),
+    );
+  }
+
+  void _showFilterDialog() {
+    String payment = _paymentFilter;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Order Filters'),
+              content: DropdownButtonFormField<String>(
+                value: payment,
+                decoration: const InputDecoration(
+                  labelText: 'Payment Status',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'All', child: Text('All')),
+                  DropdownMenuItem(value: 'Paid', child: Text('Paid')),
+                  DropdownMenuItem(value: 'Pending', child: Text('Pending')),
+                  DropdownMenuItem(value: 'COD', child: Text('COD')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setDialogState(() => payment = value);
+                  }
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                    setState(() {
+                      _paymentFilter = 'All';
+                      _statusFilter = 'All';
+                    });
+                  },
+                  child: const Text('Clear'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    setState(() => _paymentFilter = payment);
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Apply'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
 // 4 CUSTOMERS
 // -----------------------------------------------------------------------------
 
