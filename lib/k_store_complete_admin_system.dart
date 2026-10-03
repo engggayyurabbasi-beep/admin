@@ -2044,48 +2044,780 @@ class _OrderModuleState extends State<OrderModule> {
 // 4 CUSTOMERS
 // -----------------------------------------------------------------------------
 
+// Customers Module upgrade for K Store Admin.
+// Demo-data driven UI. Keeps the existing CustomerItem model unchanged.
+
 class CustomerModule extends StatefulWidget {
   const CustomerModule({super.key, required this.data});
+
   final KStoreAdminData data;
+
   @override
   State<CustomerModule> createState() => _CustomerModuleState();
 }
 
 class _CustomerModuleState extends State<CustomerModule> {
-  String query = '';
+  final TextEditingController _searchController = TextEditingController();
+
+  String _statusFilter = 'All';
+  String _sortBy = 'Newest';
+
+  final List<String> _statuses = const [
+    'Active',
+    'New',
+    'VIP',
+    'Blocked',
+  ];
+
+  final List<Map<String, dynamic>> _demoProfiles = [
+    {
+      'phone': '+91 98765 43210',
+      'whatsapp': '+91 98765 43210',
+      'gender': 'Male',
+      'joined': '12 Sep 2026',
+      'lastOrder': '02 Oct 2026',
+      'spent': 12850.0,
+      'wallet': 650.0,
+      'rewards': 1285,
+      'address': '12 Civil Lines',
+      'city': 'Agra',
+      'state': 'Uttar Pradesh',
+      'pin': '282002',
+      'completed': 5,
+      'cancelled': 0,
+      'notes': 'Regular customer',
+    },
+    {
+      'phone': '+91 91234 56780',
+      'whatsapp': '+91 91234 56780',
+      'gender': 'Female',
+      'joined': '18 Sep 2026',
+      'lastOrder': '30 Sep 2026',
+      'spent': 8450.0,
+      'wallet': 320.0,
+      'rewards': 845,
+      'address': 'Taj Nagari Phase 2',
+      'city': 'Agra',
+      'state': 'Uttar Pradesh',
+      'pin': '282001',
+      'completed': 3,
+      'cancelled': 0,
+      'notes': 'Prefers WhatsApp updates',
+    },
+    {
+      'phone': '+91 99887 66554',
+      'whatsapp': '+91 99887 66554',
+      'gender': 'Male',
+      'joined': '22 Sep 2026',
+      'lastOrder': '28 Sep 2026',
+      'spent': 4620.0,
+      'wallet': 100.0,
+      'rewards': 462,
+      'address': 'Kamla Nagar',
+      'city': 'Agra',
+      'state': 'Uttar Pradesh',
+      'pin': '282005',
+      'completed': 1,
+      'cancelled': 0,
+      'notes': 'New customer',
+    },
+    {
+      'phone': '+91 90000 11223',
+      'whatsapp': '+91 90000 11223',
+      'gender': 'Female',
+      'joined': '02 Aug 2026',
+      'lastOrder': '25 Sep 2026',
+      'spent': 22600.0,
+      'wallet': 1200.0,
+      'rewards': 2260,
+      'address': 'Sector 15',
+      'city': 'Noida',
+      'state': 'Uttar Pradesh',
+      'pin': '201301',
+      'completed': 9,
+      'cancelled': 1,
+      'notes': 'High-value customer',
+    },
+    {
+      'phone': '+91 91111 22334',
+      'whatsapp': '+91 91111 22334',
+      'gender': 'Male',
+      'joined': '05 Jul 2026',
+      'lastOrder': '20 Sep 2026',
+      'spent': 31400.0,
+      'wallet': 2100.0,
+      'rewards': 3140,
+      'address': 'Lajpat Nagar',
+      'city': 'New Delhi',
+      'state': 'Delhi',
+      'pin': '110024',
+      'completed': 12,
+      'cancelled': 0,
+      'notes': 'VIP customer',
+    },
+    {
+      'phone': '+91 93333 44556',
+      'whatsapp': '+91 93333 44556',
+      'gender': 'Female',
+      'joined': '29 Sep 2026',
+      'lastOrder': '01 Oct 2026',
+      'spent': 950.0,
+      'wallet': 50.0,
+      'rewards': 95,
+      'address': 'Shahganj',
+      'city': 'Agra',
+      'state': 'Uttar Pradesh',
+      'pin': '282010',
+      'completed': 1,
+      'cancelled': 0,
+      'notes': 'First purchase completed',
+    },
+    {
+      'phone': '+91 94444 55667',
+      'whatsapp': '+91 94444 55667',
+      'gender': 'Male',
+      'joined': '14 Aug 2026',
+      'lastOrder': '18 Sep 2026',
+      'spent': 7200.0,
+      'wallet': 250.0,
+      'rewards': 720,
+      'address': 'Vaishali Nagar',
+      'city': 'Jaipur',
+      'state': 'Rajasthan',
+      'pin': '302021',
+      'completed': 3,
+      'cancelled': 1,
+      'notes': 'Order cancellation recorded',
+    },
+    {
+      'phone': '+91 95555 66778',
+      'whatsapp': '+91 95555 66778',
+      'gender': 'Female',
+      'joined': '09 Jun 2026',
+      'lastOrder': '10 Sep 2026',
+      'spent': 15400.0,
+      'wallet': 800.0,
+      'rewards': 1540,
+      'address': 'Aliganj',
+      'city': 'Lucknow',
+      'state': 'Uttar Pradesh',
+      'pin': '226024',
+      'completed': 7,
+      'cancelled': 0,
+      'notes': 'Repeat customer',
+    },
+    {
+      'phone': '+91 96666 77889',
+      'whatsapp': '+91 96666 77889',
+      'gender': 'Male',
+      'joined': '27 Sep 2026',
+      'lastOrder': '27 Sep 2026',
+      'spent': 1800.0,
+      'wallet': 80.0,
+      'rewards': 180,
+      'address': 'Transport Nagar',
+      'city': 'Kanpur',
+      'state': 'Uttar Pradesh',
+      'pin': '208021',
+      'completed': 1,
+      'cancelled': 0,
+      'notes': 'New customer',
+    },
+    {
+      'phone': '+91 97777 88990',
+      'whatsapp': '+91 97777 88990',
+      'gender': 'Male',
+      'joined': '11 May 2026',
+      'lastOrder': '05 Aug 2026',
+      'spent': 5600.0,
+      'wallet': 0.0,
+      'rewards': 560,
+      'address': 'Old City',
+      'city': 'Agra',
+      'state': 'Uttar Pradesh',
+      'pin': '282003',
+      'completed': 2,
+      'cancelled': 0,
+      'notes': 'Account requires review',
+    },
+  ];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Map<String, dynamic> _profileFor(int index) {
+    return _demoProfiles[index % _demoProfiles.length];
+  }
+
+  String _statusFor(int index, CustomerItem customer) {
+    if (customer.status == 'Blocked') return 'Blocked';
+    if (index == 4 || customer.orders >= 10) return 'VIP';
+    if (customer.orders <= 1) return 'New';
+    return 'Active';
+  }
+
+  List<MapEntry<CustomerItem, int>> get _filteredCustomers {
+    final query = _searchController.text.trim().toLowerCase();
+
+    final result = widget.data.customers.asMap().entries.where((entry) {
+      final customer = entry.value;
+      final status = _statusFor(entry.key, customer);
+
+      final matchesSearch = query.isEmpty ||
+          customer.id.toLowerCase().contains(query) ||
+          customer.name.toLowerCase().contains(query) ||
+          customer.email.toLowerCase().contains(query);
+
+      final matchesStatus =
+          _statusFilter == 'All' || status == _statusFilter;
+
+      return matchesSearch && matchesStatus;
+    }).toList();
+
+    if (_sortBy == 'Orders: High') {
+      result.sort((a, b) => b.value.orders.compareTo(a.value.orders));
+    } else if (_sortBy == 'Name') {
+      result.sort((a, b) => a.value.name.compareTo(b.value.name));
+    }
+
+    return result;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final list = widget.data.customers.where((c) =>
-        c.name.toLowerCase().contains(query.toLowerCase()) ||
-        c.email.toLowerCase().contains(query.toLowerCase())).toList();
+    final customers = _filteredCustomers;
 
     return ModuleShell(
+      actions: [
+        OutlinedButton.icon(
+          onPressed: _showFilterDialog,
+          icon: const Icon(Icons.filter_alt_outlined),
+          label: const Text('Filters'),
+        ),
+        FilledButton.icon(
+          onPressed: _addCustomer,
+          icon: const Icon(Icons.person_add_alt_1),
+          label: const Text('Add Customer'),
+        ),
+      ],
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          _buildStats(),
+          const SizedBox(height: 14),
           TextField(
-            decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search customers', border: OutlineInputBorder()),
-            onChanged: (v) => setState(() => query = v),
-          ),
-          const SizedBox(height: 12),
-          Expanded(child: ListView(children: list.map((c) => Card(
-            child: ListTile(
-              leading: const CircleAvatar(child: Icon(Icons.person)),
-              title: Text(c.name),
-              subtitle: Text('${c.email} • Orders: ${c.orders}'),
-              trailing: Chip(label: Text(c.status)),
+            controller: _searchController,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchController.text.isEmpty
+                  ? null
+                  : IconButton(
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {});
+                      },
+                      icon: const Icon(Icons.clear),
+                    ),
+              hintText: 'Search name, email or Customer ID',
+              border: const OutlineInputBorder(),
             ),
-          )).toList())),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Text(
+                '${customers.length} customers',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const Spacer(),
+              DropdownButton<String>(
+                value: _sortBy,
+                items: const [
+                  DropdownMenuItem(value: 'Newest', child: Text('Newest')),
+                  DropdownMenuItem(
+                    value: 'Orders: High',
+                    child: Text('Orders: High'),
+                  ),
+                  DropdownMenuItem(value: 'Name', child: Text('Name')),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() => _sortBy = value);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: customers.isEmpty
+                ? const EmptyBox(
+                    title: 'No customers found',
+                    message: 'Try another search or filter.',
+                  )
+                : ListView.separated(
+                    itemCount: customers.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final entry = customers[index];
+                      return _customerCard(entry.value, entry.key);
+                    },
+                  ),
+          ),
         ],
       ),
     );
   }
+
+  Widget _buildStats() {
+    final all = widget.data.customers;
+    final active = all
+        .asMap()
+        .entries
+        .where((e) => _statusFor(e.key, e.value) == 'Active')
+        .length;
+    final vip = all
+        .asMap()
+        .entries
+        .where((e) => _statusFor(e.key, e.value) == 'VIP')
+        .length;
+    final blocked = all.where((c) => c.status == 'Blocked').length;
+    final orders = all.fold<int>(0, (sum, c) => sum + c.orders);
+
+    final cards = [
+      ('Customers', all.length, Icons.people_alt_outlined),
+      ('Active', active, Icons.verified_user_outlined),
+      ('VIP', vip, Icons.star_outline),
+      ('Blocked', blocked, Icons.block_outlined),
+      ('Orders', orders, Icons.shopping_bag_outlined),
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: cards
+            .map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: SizedBox(
+                  width: 145,
+                  child: StatCard(
+                    title: item.$1,
+                    value: '${item.$2}',
+                    icon: item.$3,
+                  ),
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _customerCard(CustomerItem customer, int index) {
+    final profile = _profileFor(index);
+    final status = _statusFor(index, customer);
+
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _showDetails(customer, index),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    child: Text(
+                      customer.name.isEmpty
+                          ? '?'
+                          : customer.name.substring(0, 1).toUpperCase(),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          customer.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          '${customer.id} • ${customer.email}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  _statusChip(status),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 16,
+                runSpacing: 8,
+                children: [
+                  _miniInfo(Icons.phone_outlined, profile['phone']),
+                  _miniInfo(
+                    Icons.shopping_bag_outlined,
+                    '${customer.orders} orders',
+                  ),
+                  _miniInfo(
+                    Icons.currency_rupee,
+                    '₹${(profile['spent'] as double).toStringAsFixed(0)}',
+                  ),
+                  _miniInfo(
+                    Icons.stars_outlined,
+                    '${profile['rewards']} points',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _showDetails(customer, index),
+                    icon: const Icon(Icons.visibility_outlined, size: 18),
+                    label: const Text('Details'),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _editCustomer(customer),
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    label: const Text('Edit'),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: status == 'Blocked' ? 'Activate' : 'Block',
+                    onPressed: () => _toggleStatus(customer),
+                    icon: Icon(
+                      status == 'Blocked'
+                          ? Icons.lock_open_outlined
+                          : Icons.block_outlined,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _miniInfo(IconData icon, String value) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 17),
+        const SizedBox(width: 4),
+        Text(value),
+      ],
+    );
+  }
+
+  Widget _statusChip(String status) {
+    return Chip(
+      label: Text(status),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  void _showDetails(CustomerItem customer, int index) {
+    final profile = _profileFor(index);
+    final status = _statusFor(index, customer);
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              CircleAvatar(
+                child: Text(customer.name.substring(0, 1).toUpperCase()),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Text(customer.name)),
+              _statusChip(status),
+            ],
+          ),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _section('Customer Information', [
+                    _detail('Customer ID', customer.id),
+                    _detail('Email', customer.email),
+                    _detail('Phone', profile['phone']),
+                    _detail('WhatsApp', profile['whatsapp']),
+                    _detail('Gender', profile['gender']),
+                    _detail('Joined', profile['joined']),
+                  ]),
+                  _section('Business Summary', [
+                    _detail('Total Orders', '${customer.orders}'),
+                    _detail('Completed Orders', '${profile['completed']}'),
+                    _detail('Cancelled Orders', '${profile['cancelled']}'),
+                    _detail(
+                      'Total Spent',
+                      '₹${(profile['spent'] as double).toStringAsFixed(2)}',
+                    ),
+                    _detail(
+                      'Wallet Balance',
+                      '₹${(profile['wallet'] as double).toStringAsFixed(2)}',
+                    ),
+                    _detail('Reward Points', '${profile['rewards']}'),
+                    _detail('Last Order', profile['lastOrder']),
+                  ]),
+                  _section('Address', [
+                    _detail(
+                      'Address',
+                      '${profile['address']}, ${profile['city']}, '
+                          '${profile['state']} - ${profile['pin']}',
+                    ),
+                  ]),
+                  _section('Notes', [
+                    _detail('Admin Note', profile['notes']),
+                  ]),
+                  _section('Order History', [
+                    _orderHistory(customer.orders),
+                  ]),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _editCustomer(customer);
+              },
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Edit'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _section(String title, List<Widget> children) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _detail(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 125,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+
+  Widget _orderHistory(int count) {
+    if (count == 0) {
+      return const Text('No order history.');
+    }
+
+    return Column(
+      children: List.generate(
+        count > 5 ? 5 : count,
+        (index) => ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.receipt_long_outlined),
+          title: Text('ORD-DEMO-${1001 + index}'),
+          subtitle: Text(index == 0 ? 'Recent order' : 'Completed order'),
+          trailing: const Icon(Icons.chevron_right),
+        ),
+      ),
+    );
+  }
+
+  void _toggleStatus(CustomerItem customer) {
+    setState(() {
+      customer.status = customer.status == 'Blocked' ? 'Active' : 'Blocked';
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          customer.status == 'Blocked'
+              ? '${customer.name} blocked'
+              : '${customer.name} activated',
+        ),
+      ),
+    );
+  }
+
+  void _editCustomer(CustomerItem customer) {
+    final name = TextEditingController(text: customer.name);
+    final email = TextEditingController(text: customer.email);
+
+    showFormDialog(
+      context,
+      title: 'Edit Customer',
+      fields: [
+        TextField(
+          controller: name,
+          decoration: const InputDecoration(labelText: 'Customer Name'),
+        ),
+        TextField(
+          controller: email,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(labelText: 'Email'),
+        ),
+      ],
+      onSave: () {
+        if (name.text.trim().isEmpty || email.text.trim().isEmpty) return;
+
+        setState(() {
+          customer.name = name.text.trim();
+          customer.email = email.text.trim();
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Customer updated')),
+        );
+      },
+    );
+  }
+
+  void _addCustomer() {
+    final name = TextEditingController();
+    final email = TextEditingController();
+
+    showFormDialog(
+      context,
+      title: 'Add Customer',
+      fields: [
+        TextField(
+          controller: name,
+          decoration: const InputDecoration(labelText: 'Customer Name'),
+        ),
+        TextField(
+          controller: email,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(labelText: 'Email'),
+        ),
+      ],
+      onSave: () {
+        final customerName = name.text.trim();
+        final customerEmail = email.text.trim();
+
+        if (customerName.isEmpty || customerEmail.isEmpty) return;
+
+        final id = 'CU${(widget.data.customers.length + 1).toString().padLeft(3, '0')}';
+
+        setState(() {
+          widget.data.customers.add(
+            CustomerItem(
+              id,
+              customerName,
+              customerEmail,
+              'Active',
+              0,
+            ),
+          );
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$id customer added')),
+        );
+      },
+    );
+  }
+
+  void _showFilterDialog() {
+    String status = _statusFilter;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Customer Filters'),
+              content: DropdownButtonFormField<String>(
+                value: status,
+                decoration: const InputDecoration(
+                  labelText: 'Customer Status',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  const DropdownMenuItem(
+                    value: 'All',
+                    child: Text('All'),
+                  ),
+                  ..._statuses.map(
+                    (value) => DropdownMenuItem(
+                      value: value,
+                      child: Text(value),
+                    ),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setDialogState(() => status = value);
+                  }
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                    setState(() => _statusFilter = 'All');
+                  },
+                  child: const Text('Clear'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    setState(() => _statusFilter = status);
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Apply'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 }
-
-// -----------------------------------------------------------------------------
-// 5 OFFERS & COUPONS
-// -----------------------------------------------------------------------------
-
 class OfferModule extends StatefulWidget {
   const OfferModule({super.key, required this.data});
   final KStoreAdminData data;
