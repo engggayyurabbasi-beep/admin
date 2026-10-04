@@ -9907,7 +9907,6 @@ class _CustomOrdersModuleState extends State<CustomOrdersModule> {
 // VENDORS
 // -----------------------------------------------------------------------------
 
-import 'package:flutter/material.dart';
 
 class VendorsModule extends StatefulWidget {
   const VendorsModule({super.key, required this.data});
