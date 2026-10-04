@@ -10975,7 +10975,6 @@ class _VendorQuickAction extends StatelessWidget {
   }
 }
 
-import 'package:flutter/material.dart';
 
 class ResellersModule extends StatefulWidget {
   const ResellersModule({super.key, required this.data});
