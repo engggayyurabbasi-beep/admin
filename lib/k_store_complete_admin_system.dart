@@ -5731,6 +5731,22 @@ class _ComboInfo extends StatelessWidget {
   }
 }
 
+
+import 'package:flutter/material.dart';
+
+/// Professional Payments module for K - Store Admin Panel.
+///
+/// Integration:
+/// Replace the existing `PaymentsModule` class in
+/// `lib/k_store_complete_admin_system.dart` with the contents of this file
+/// from `class PaymentsModule` through the end of the file.
+///
+/// The module uses the existing `KStoreAdminData` and `OrderAdmin` classes
+/// already present in the K - Store admin system.
+///
+/// NOTE: This is currently an admin UI/local-state module. Gateway API keys,
+/// real transactions, commission calculations, and payouts must be connected
+/// to the backend/API before going live.
 class PaymentsModule extends StatefulWidget {
   const PaymentsModule({super.key, required this.data});
   final KStoreAdminData data;
@@ -5739,72 +5755,1421 @@ class PaymentsModule extends StatefulWidget {
   State<PaymentsModule> createState() => _PaymentsModuleState();
 }
 
-class _PaymentsModuleState extends State<PaymentsModule> {
-  final Map<String, bool> methods = {
+class _PaymentsModuleState extends State<PaymentsModule>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  final Map<String, bool> paymentMethods = {
     'Razorpay': true,
     'UPI': true,
-    'Cards': true,
+    'Credit / Debit Cards': true,
     'Net Banking': true,
     'Cash on Delivery': true,
     'Wallet': true,
   };
 
+  final List<_GatewayItem> gateways = [
+    _GatewayItem(
+      'Razorpay',
+      'Online payments',
+      Icons.account_balance_wallet_rounded,
+      true,
+      'Live',
+    ),
+    _GatewayItem(
+      'Cashfree',
+      'Online payments',
+      Icons.payments_rounded,
+      false,
+      'Test',
+    ),
+  ];
+
+  final List<_PaymentTransaction> transactions = [
+    _PaymentTransaction(
+      'TXN-10021',
+      'KIRZ000001',
+      'Customer',
+      'Razorpay',
+      1299,
+      'Success',
+      'Today, 10:32 AM',
+    ),
+    _PaymentTransaction(
+      'TXN-10020',
+      'KIRZ000002',
+      'Customer',
+      'UPI',
+      899,
+      'Success',
+      'Today, 09:48 AM',
+    ),
+    _PaymentTransaction(
+      'TXN-10019',
+      'KIRZ000003',
+      'Customer',
+      'Razorpay',
+      1499,
+      'Failed',
+      'Yesterday, 07:14 PM',
+    ),
+    _PaymentTransaction(
+      'TXN-10018',
+      'KIRZ000004',
+      'Customer',
+      'COD',
+      599,
+      'Pending',
+      'Yesterday, 05:20 PM',
+    ),
+  ];
+
+  final List<_PartnerPayout> partnerPayouts = [
+    _PartnerPayout(
+      'Affiliate',
+      'AFF-1001',
+      'Affiliate Partner',
+      2450,
+      750,
+      'Pending',
+    ),
+    _PartnerPayout(
+      'Reseller',
+      'RES-1008',
+      'Reseller Partner',
+      9800,
+      3200,
+      'Approved',
+    ),
+    _PartnerPayout(
+      'Vendor',
+      'VEN-0021',
+      'Marketplace Vendor',
+      28400,
+      8400,
+      'Pending',
+    ),
+    _PartnerPayout(
+      'Affiliate',
+      'AFF-1007',
+      'Content Partner',
+      1850,
+      1850,
+      'Paid',
+    ),
+  ];
+
+  final List<_RefundItem> refunds = [
+    _RefundItem(
+      'REF-1004',
+      'KIRZ000011',
+      'Customer',
+      799,
+      'Pending',
+      'Today',
+    ),
+    _RefundItem(
+      'REF-1003',
+      'KIRZ000009',
+      'Customer',
+      1299,
+      'Processed',
+      'Yesterday',
+    ),
+  ];
+
+  String transactionFilter = 'All';
+  String payoutFilter = 'All';
+  String search = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 5, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  double get orderValue =>
+      widget.data.orders.fold<double>(0, (sum, order) => sum + order.amount);
+
+  double get pendingPartnerAmount => partnerPayouts
+      .where((p) => p.status != 'Paid')
+      .fold<double>(0, (sum, p) => sum + p.payout);
+
+  double get paidPartnerAmount => partnerPayouts
+      .where((p) => p.status == 'Paid')
+      .fold<double>(0, (sum, p) => sum + p.payout);
+
   @override
   Widget build(BuildContext context) {
-    final total = widget.data.orders.fold<double>(0, (sum, o) => sum + o.amount);
-    return _Page(
+    return _PaymentsPage(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _ModuleHeader(
-            title: 'Payments',
-            subtitle: 'Payment gateways, methods, status and controls',
-            icon: Icons.payments_rounded,
-          ),
-          _StatsStrip(items: [
-            ['Order Value', '₹${total.toStringAsFixed(0)}', Icons.currency_rupee_rounded],
-            ['Methods', '${methods.length}', Icons.payment_rounded],
-            ['Online', 'Enabled', Icons.check_circle_rounded],
-          ]),
-          const SizedBox(height: 12),
-          _SectionCard(
-            title: 'Payment Methods',
-            icon: Icons.credit_card_rounded,
-            child: Column(
-              children: methods.entries
-                  .map(
-                    (e) => SwitchListTile(
-                      title: Text(e.key),
-                      subtitle: Text(e.value ? 'Enabled' : 'Disabled'),
-                      value: e.value,
-                      onChanged: (v) => setState(() => methods[e.key] = v),
-                    ),
-                  )
-                  .toList(),
+          _paymentsHeader(),
+          const SizedBox(height: 14),
+          _summary(),
+          const SizedBox(height: 14),
+          _tabs(),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 760,
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _overviewTab(),
+                _gatewaysTab(),
+                _transactionsTab(),
+                _settlementsTab(),
+                _refundsTab(),
+              ],
             ),
-          ),
-          const SizedBox(height: 12),
-          _ActionGrid(
-            actions: [
-              _ToolAction('Add Gateway', Icons.add_card_rounded, () => _keyDialog('Payment Gateway')),
-              _ToolAction('Test Payment', Icons.bolt_rounded, () => _showSnack(context, 'Payment test mode opened.')),
-              _ToolAction('Refund', Icons.currency_exchange_rounded, () => _showSnack(context, 'Refund workflow opened.')),
-              _ToolAction('Transactions', Icons.receipt_long_rounded, () => _showSnack(context, 'Transactions opened.')),
-            ],
           ),
         ],
       ),
     );
   }
 
-  void _keyDialog(String title) => showDialog(
-        context: context,
-        builder: (context) => _CredentialDialog(title: title),
-      );
+  Widget _paymentsHeader() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 62,
+          height: 62,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFE91E63), Color(0xFF9C27B0)],
+            ),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: const Icon(
+            Icons.account_balance_rounded,
+            color: Colors.white,
+            size: 32,
+          ),
+        ),
+        const SizedBox(width: 14),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Payments & Settlements',
+                style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Manage customer payments, gateways, refunds, commissions and partner payouts.',
+                style: TextStyle(color: Colors.black54, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => _showSettingsDialog(),
+          icon: const Icon(Icons.settings_outlined),
+          label: const Text('Payment Settings'),
+        ),
+      ],
+    );
+  }
+
+  Widget _summary() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cards = [
+          _SummaryCard(
+            'Order Value',
+            '₹${orderValue.toStringAsFixed(0)}',
+            Icons.currency_rupee_rounded,
+            const Color(0xFFE91E63),
+            'From orders',
+          ),
+          _SummaryCard(
+            'Online Payments',
+            '₹${(orderValue * .78).toStringAsFixed(0)}',
+            Icons.credit_card_rounded,
+            const Color(0xFF7C4DFF),
+            'Estimated',
+          ),
+          _SummaryCard(
+            'Partner Pending',
+            '₹${pendingPartnerAmount.toStringAsFixed(0)}',
+            Icons.pending_actions_rounded,
+            const Color(0xFFFF9800),
+            'Affiliate + reseller + vendor',
+          ),
+          _SummaryCard(
+            'Paid Out',
+            '₹${paidPartnerAmount.toStringAsFixed(0)}',
+            Icons.check_circle_outline_rounded,
+            const Color(0xFF16A05D),
+            'Partner payouts',
+          ),
+        ];
+
+        final width = constraints.maxWidth < 600
+            ? constraints.maxWidth
+            : (constraints.maxWidth - 36) / 4;
+
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: cards
+              .map((card) => SizedBox(width: width, child: card))
+              .toList(),
+        );
+      },
+    );
+  }
+
+  Widget _tabs() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE8E8EC)),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        labelColor: const Color(0xFFE91E63),
+        unselectedLabelColor: Colors.black54,
+        indicatorColor: const Color(0xFFE91E63),
+        tabs: const [
+          Tab(text: 'Overview', icon: Icon(Icons.dashboard_outlined)),
+          Tab(text: 'Gateways', icon: Icon(Icons.account_balance_outlined)),
+          Tab(text: 'Transactions', icon: Icon(Icons.receipt_long_outlined)),
+          Tab(text: 'Partner Payouts', icon: Icon(Icons.handshake_outlined)),
+          Tab(text: 'Refunds', icon: Icon(Icons.currency_exchange_rounded)),
+        ],
+      ),
+    );
+  }
+
+  Widget _overviewTab() {
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 30),
+      children: [
+        _section(
+          'Customer Payment Methods',
+          'Enable or disable the payment methods shown during checkout.',
+          Icons.credit_card_rounded,
+          Column(
+            children: paymentMethods.entries.map((entry) {
+              return SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  entry.key,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: Text(
+                  entry.value ? 'Available at checkout' : 'Disabled at checkout',
+                ),
+                value: entry.value,
+                activeThumbColor: const Color(0xFFE91E63),
+                onChanged: (value) {
+                  setState(() => paymentMethods[entry.key] = value);
+                },
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 14),
+        _section(
+          'Partner Payment Center',
+          'Affiliate, reseller and vendor commission/settlement controls.',
+          Icons.groups_rounded,
+          Column(
+            children: [
+              _partnerAction(
+                'Affiliate Commissions',
+                'Commission approval, withdrawal and payout history',
+                Icons.link_rounded,
+                const Color(0xFF7C4DFF),
+                () => _openPartnerDialog('Affiliate'),
+              ),
+              _partnerAction(
+                'Reseller Payouts',
+                'Reseller earnings, wallet withdrawals and payouts',
+                Icons.storefront_rounded,
+                const Color(0xFF009688),
+                () => _openPartnerDialog('Reseller'),
+              ),
+              _partnerAction(
+                'Vendor Settlements',
+                'Vendor sales, commission deductions and settlements',
+                Icons.business_rounded,
+                const Color(0xFFFF9800),
+                () => _openPartnerDialog('Vendor'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        _section(
+          'Quick Actions',
+          'Common payment operations.',
+          Icons.bolt_rounded,
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _quickAction(
+                'Add Gateway',
+                Icons.add_card_rounded,
+                _showAddGatewayDialog,
+              ),
+              _quickAction(
+                'Process Refund',
+                Icons.currency_exchange_rounded,
+                _showRefundDialog,
+              ),
+              _quickAction(
+                'Approve Payout',
+                Icons.verified_rounded,
+                () => _openPartnerDialog('All'),
+              ),
+              _quickAction(
+                'Reconciliation',
+                Icons.fact_check_outlined,
+                _showReconciliationDialog,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _gatewaysTab() {
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 30),
+      children: [
+        _section(
+          'Payment Gateways',
+          'Configure online payment providers and their environment.',
+          Icons.account_balance_outlined,
+          Column(
+            children: gateways
+                .map(
+                  (gateway) => _gatewayCard(gateway),
+                )
+                .toList(),
+          ),
+        ),
+        const SizedBox(height: 14),
+        _section(
+          'Gateway Security',
+          'Keep secrets protected and use webhooks for payment verification.',
+          Icons.security_rounded,
+          Column(
+            children: const [
+              _SecurityRow(
+                'API credentials',
+                'Stored securely on the server',
+                Icons.key_rounded,
+              ),
+              _SecurityRow(
+                'Webhook verification',
+                'Required before marking an order paid',
+                Icons.verified_user_outlined,
+              ),
+              _SecurityRow(
+                'Live/Test mode',
+                'Separate credentials for testing',
+                Icons.toggle_on_outlined,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _transactionsTab() {
+    final filtered = transactions.where((tx) {
+      final matchesFilter =
+          transactionFilter == 'All' || tx.status == transactionFilter;
+      final q = search.trim().toLowerCase();
+      final matchesSearch = q.isEmpty ||
+          tx.id.toLowerCase().contains(q) ||
+          tx.orderId.toLowerCase().contains(q) ||
+          tx.gateway.toLowerCase().contains(q);
+      return matchesFilter && matchesSearch;
+    }).toList();
+
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 30),
+      children: [
+        _section(
+          'Transactions',
+          'Track successful, pending and failed customer payments.',
+          Icons.receipt_long_rounded,
+          Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: 'Search transaction, order or gateway...',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => setState(() => search = value),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  DropdownButton<String>(
+                    value: transactionFilter,
+                    items: const [
+                      DropdownMenuItem(value: 'All', child: Text('All')),
+                      DropdownMenuItem(
+                        value: 'Success',
+                        child: Text('Success'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Pending',
+                        child: Text('Pending'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Failed',
+                        child: Text('Failed'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() => transactionFilter = value);
+                      }
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ...filtered.map(_transactionCard),
+              if (filtered.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(30),
+                  child: Text('No transactions found.'),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _settlementsTab() {
+    final filtered = partnerPayouts.where((payout) {
+      return payoutFilter == 'All' || payout.status == payoutFilter;
+    }).toList();
+
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 30),
+      children: [
+        _section(
+          'Affiliate • Reseller • Vendor Settlements',
+          'Approve, hold and track partner earnings and payouts.',
+          Icons.handshake_rounded,
+          Column(
+            children: [
+              Wrap(
+                spacing: 8,
+                children: ['All', 'Pending', 'Approved', 'Paid']
+                    .map(
+                      (value) => ChoiceChip(
+                        label: Text(value),
+                        selected: payoutFilter == value,
+                        onSelected: (_) =>
+                            setState(() => payoutFilter = value),
+                      ),
+                    )
+                    .toList(),
+              ),
+              const SizedBox(height: 14),
+              ...filtered.map(_payoutCard),
+              if (filtered.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(30),
+                  child: Text('No partner payouts found.'),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        _section(
+          'Settlement Rules',
+          'Business rules that should be connected to your backend.',
+          Icons.rule_rounded,
+          Column(
+            children: [
+              _ruleRow(
+                'Minimum withdrawal',
+                '₹500',
+                Icons.account_balance_wallet_outlined,
+              ),
+              _ruleRow(
+                'Settlement cycle',
+                'Weekly',
+                Icons.calendar_month_outlined,
+              ),
+              _ruleRow(
+                'Vendor commission',
+                'Configurable',
+                Icons.percent_rounded,
+              ),
+              _ruleRow(
+                'Affiliate commission',
+                'Product/category wise',
+                Icons.link_rounded,
+              ),
+              _ruleRow(
+                'Reseller margin',
+                'Price-list based',
+                Icons.sell_outlined,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _refundsTab() {
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 30),
+      children: [
+        _section(
+          'Refund Management',
+          'Review refund requests and payment reversals.',
+          Icons.currency_exchange_rounded,
+          Column(
+            children: [
+              ...refunds.map(
+                (refund) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor: const Color(0xFFFFEBEE),
+                    child: const Icon(
+                      Icons.currency_exchange,
+                      color: Color(0xFFE91E63),
+                    ),
+                  ),
+                  title: Text(
+                    refund.id,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Text(
+                    '${refund.orderId} • ${refund.type} • ${refund.date}',
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '₹${refund.amount.toStringAsFixed(0)}',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(width: 10),
+                      _statusChip(refund.status),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _showRefundDialog,
+                icon: const Icon(Icons.add),
+                label: const Text('Create Refund Request'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        _section(
+          'Refund Controls',
+          'Configure operational refund behavior.',
+          Icons.tune_rounded,
+          Column(
+            children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Auto Refund Eligible Orders'),
+                subtitle: const Text(
+                  'Only after order and payment validation',
+                ),
+                value: true,
+                onChanged: (_) {},
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Require Admin Approval'),
+                subtitle: const Text('Recommended for high-value refunds'),
+                value: true,
+                onChanged: (_) {},
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _gatewayCard(_GatewayItem gateway) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFFE8E8EC)),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        leading: CircleAvatar(
+          backgroundColor: const Color(0xFFFCE4EC),
+          child: Icon(gateway.icon, color: const Color(0xFFE91E63)),
+        ),
+        title: Text(
+          gateway.name,
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        subtitle: Text('${gateway.description} • ${gateway.environment}'),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Switch(
+              value: gateway.enabled,
+              activeThumbColor: const Color(0xFFE91E63),
+              onChanged: (value) => setState(() => gateway.enabled = value),
+            ),
+            IconButton(
+              tooltip: 'Configure',
+              onPressed: () => _showGatewayConfig(gateway),
+              icon: const Icon(Icons.settings_outlined),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _transactionCard(_PaymentTransaction tx) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFFE8E8EC)),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+        leading: CircleAvatar(
+          backgroundColor: tx.status == 'Success'
+              ? const Color(0xFFE8F5E9)
+              : tx.status == 'Failed'
+                  ? const Color(0xFFFFEBEE)
+                  : const Color(0xFFFFF3E0),
+          child: Icon(
+            tx.status == 'Success'
+                ? Icons.check_rounded
+                : tx.status == 'Failed'
+                    ? Icons.close_rounded
+                    : Icons.schedule_rounded,
+            color: tx.status == 'Success'
+                ? const Color(0xFF16A05D)
+                : tx.status == 'Failed'
+                    ? const Color(0xFFD32F2F)
+                    : const Color(0xFFF57C00),
+          ),
+        ),
+        title: Text(
+          '${tx.id} • ${tx.orderId}',
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        subtitle: Text('${tx.gateway} • ${tx.time}'),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              '₹${tx.amount.toStringAsFixed(0)}',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            _statusChip(tx.status),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _payoutCard(_PartnerPayout payout) {
+    final icon = payout.type == 'Affiliate'
+        ? Icons.link_rounded
+        : payout.type == 'Reseller'
+            ? Icons.storefront_rounded
+            : Icons.business_rounded;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 9),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFFE8E8EC)),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        leading: CircleAvatar(
+          backgroundColor: const Color(0xFFF3E5F5),
+          child: Icon(icon, color: const Color(0xFF7B1FA2)),
+        ),
+        title: Text(
+          '${payout.type} • ${payout.id}',
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        subtitle: Text(
+          '${payout.name} • Sales ₹${payout.sales.toStringAsFixed(0)}',
+        ),
+        trailing: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 10,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '₹${payout.payout.toStringAsFixed(0)}',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                _statusChip(payout.status),
+              ],
+            ),
+            if (payout.status != 'Paid')
+              IconButton(
+                tooltip: 'Process',
+                onPressed: () => _processPayout(payout),
+                icon: const Icon(Icons.arrow_forward_rounded),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statusChip(String status) {
+    Color bg;
+    Color fg;
+    switch (status) {
+      case 'Success':
+      case 'Paid':
+      case 'Processed':
+        bg = const Color(0xFFE8F5E9);
+        fg = const Color(0xFF2E7D32);
+        break;
+      case 'Failed':
+        bg = const Color(0xFFFFEBEE);
+        fg = const Color(0xFFC62828);
+        break;
+      case 'Approved':
+        bg = const Color(0xFFE3F2FD);
+        fg = const Color(0xFF1565C0);
+        break;
+      default:
+        bg = const Color(0xFFFFF3E0);
+        fg = const Color(0xFFE65100);
+    }
+    return Container(
+      margin: const EdgeInsets.only(top: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          color: fg,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _section(
+    String title,
+    String subtitle,
+    IconData icon,
+    Widget child,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8E8EC)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFCE4EC),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: const Color(0xFFE91E63)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(height: 1),
+          ),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _partnerAction(
+    String title,
+    String subtitle,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        backgroundColor: color.withOpacity(.10),
+        child: Icon(icon, color: color),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: onTap,
+    );
+  }
+
+  Widget _quickAction(String title, IconData icon, VoidCallback onTap) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon),
+      label: Text(title),
+    );
+  }
+
+  Widget _ruleRow(String title, String value, IconData icon) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: const Color(0xFFE91E63)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+      trailing: Text(
+        value,
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+
+  Future<void> _showAddGatewayDialog() async {
+    final name = TextEditingController();
+    final dialog = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Payment Gateway'),
+        content: TextField(
+          controller: name,
+          decoration: const InputDecoration(
+            labelText: 'Gateway Name',
+            hintText: 'e.g. PayU',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+    if (dialog == true && name.text.trim().isNotEmpty) {
+      setState(() {
+        gateways.add(
+          _GatewayItem(
+            name.text.trim(),
+            'Payment gateway',
+            Icons.account_balance_outlined,
+            false,
+            'Test',
+          ),
+        );
+      });
+    }
+    name.dispose();
+  }
+
+  Future<void> _showGatewayConfig(_GatewayItem gateway) async {
+    final key = TextEditingController();
+    final secret = TextEditingController();
+    final webhook = TextEditingController();
+    String environment = gateway.environment;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('${gateway.name} Configuration'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: environment,
+                  decoration: const InputDecoration(labelText: 'Environment'),
+                  items: const [
+                    DropdownMenuItem(value: 'Test', child: Text('Test')),
+                    DropdownMenuItem(value: 'Live', child: Text('Live')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => environment = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: key,
+                  decoration: const InputDecoration(
+                    labelText: 'API Key',
+                    prefixIcon: Icon(Icons.key_outlined),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: secret,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'API Secret',
+                    prefixIcon: Icon(Icons.lock_outline),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: webhook,
+                  decoration: const InputDecoration(
+                    labelText: 'Webhook URL',
+                    prefixIcon: Icon(Icons.webhook_outlined),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'For security, production secrets should be stored on the backend, not inside the mobile app.',
+                  style: TextStyle(fontSize: 11, color: Colors.black54),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                gateway.environment = environment;
+                Navigator.pop(context);
+                setState(() {});
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    key.dispose();
+    secret.dispose();
+    webhook.dispose();
+  }
+
+  Future<void> _showRefundDialog() async {
+    final order = TextEditingController();
+    final amount = TextEditingController();
+    final reason = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Create Refund Request'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: order,
+                decoration: const InputDecoration(labelText: 'Order ID'),
+              ),
+              TextField(
+                controller: amount,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Refund Amount'),
+              ),
+              TextField(
+                controller: reason,
+                decoration: const InputDecoration(labelText: 'Reason'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(this.context).showSnackBar(
+                const SnackBar(content: Text('Refund request created.')),
+              );
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+
+    order.dispose();
+    amount.dispose();
+    reason.dispose();
+  }
+
+  Future<void> _showSettingsDialog() async {
+    bool requireApproval = true;
+    bool webhookRequired = true;
+    bool autoCapture = true;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Payment Settings'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SwitchListTile(
+                title: const Text('Require payment verification'),
+                value: webhookRequired,
+                onChanged: (v) => setDialogState(() => webhookRequired = v),
+              ),
+              SwitchListTile(
+                title: const Text('Auto capture'),
+                value: autoCapture,
+                onChanged: (v) => setDialogState(() => autoCapture = v),
+              ),
+              SwitchListTile(
+                title: const Text('Refund approval'),
+                value: requireApproval,
+                onChanged: (v) => setDialogState(() => requireApproval = v),
+              ),
+            ],
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Save Settings'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showReconciliationDialog() async {
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Payment Reconciliation'),
+        content: const Text(
+          'Reconciliation will compare gateway transactions, order payments, refunds and settlements. Connect this screen to the backend before enabling automated reconciliation.',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Run Check'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openPartnerDialog(String type) async {
+    final filtered = type == 'All'
+        ? partnerPayouts
+        : partnerPayouts.where((p) => p.type == type).toList();
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          type == 'All' ? 'Partner Payouts' : '$type Payments & Payouts',
+        ),
+        content: SizedBox(
+          width: 520,
+          child: ListView(
+            shrinkWrap: true,
+            children: filtered.map((payout) {
+              return ListTile(
+                leading: Icon(
+                  payout.type == 'Affiliate'
+                      ? Icons.link
+                      : payout.type == 'Reseller'
+                          ? Icons.storefront
+                          : Icons.business,
+                ),
+                title: Text('${payout.id} • ${payout.name}'),
+                subtitle: Text(
+                  'Sales ₹${payout.sales.toStringAsFixed(0)} • ${payout.status}',
+                ),
+                trailing: Text(
+                  '₹${payout.payout.toStringAsFixed(0)}',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _processPayout(_PartnerPayout payout) {
+    setState(() => payout.status = 'Paid');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${payout.type} payout marked as paid.'),
+      ),
+    );
+  }
 }
 
-// -----------------------------------------------------------------------------
-// DELIVERY & SHIPPING
-// -----------------------------------------------------------------------------
+class _PaymentsPage extends StatelessWidget {
+  const _PaymentsPage({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 28),
+      child: child,
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard(
+    this.title,
+    this.value,
+    this.icon,
+    this.color,
+    this.subtitle,
+  );
+
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: const Color(0xFFE8E8EC)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: color.withOpacity(.10),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontSize: 11, color: Colors.black54),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 9, color: Colors.black45),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SecurityRow extends StatelessWidget {
+  const _SecurityRow(this.title, this.subtitle, this.icon);
+  final String title;
+  final String subtitle;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: const Color(0xFFE91E63)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+      subtitle: Text(subtitle),
+    );
+  }
+}
+
+class _GatewayItem {
+  _GatewayItem(
+    this.name,
+    this.description,
+    this.icon,
+    this.enabled,
+    this.environment,
+  );
+
+  final String name;
+  final String description;
+  final IconData icon;
+  bool enabled;
+  String environment;
+}
+
+class _PaymentTransaction {
+  _PaymentTransaction(
+    this.id,
+    this.orderId,
+    this.type,
+    this.gateway,
+    this.amount,
+    this.status,
+    this.time,
+  );
+
+  final String id;
+  final String orderId;
+  final String type;
+  final String gateway;
+  final double amount;
+  final String status;
+  final String time;
+}
+
+class _PartnerPayout {
+  _PartnerPayout(
+    this.type,
+    this.id,
+    this.name,
+    this.sales,
+    this.payout,
+    this.status,
+  );
+
+  final String type;
+  final String id;
+  final String name;
+  final double sales;
+  final double payout;
+  String status;
+}
+
+class _RefundItem {
+  _RefundItem(
+    this.id,
+    this.orderId,
+    this.type,
+    this.amount,
+    this.status,
+    this.date,
+  );
+
+  final String id;
+  final String orderId;
+  final String type;
+  final double amount;
+  final String status;
+  final String date;
+}
+
+/// Existing project types are intentionally referenced here.
+/// Do not duplicate their declarations in the main file.
+
 
 class DeliveryShippingModule extends StatefulWidget {
   const DeliveryShippingModule({super.key, required this.data});
