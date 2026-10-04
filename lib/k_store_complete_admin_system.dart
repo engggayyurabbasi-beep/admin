@@ -4368,6 +4368,19 @@ class _CustomerProfilePage extends StatelessWidget {
       );
 }
 
+
+// Professional Offers & Coupons module for K - Store Admin.
+// This module is designed to replace the existing OffersCouponsModule
+// in lib/k_store_complete_admin_system.dart.
+//
+// Notes:
+// - Uses existing KStoreAdminData, ProductAdmin and CouponAdmin models.
+// - Coupon/Combo extended fields are kept in this module's in-memory stores.
+// - Combo configuration includes the customer-side rule:
+//   tapping a combo should add every selected product to cart.
+//   The actual customer-app/cart integration must consume the same combo data
+//   from the production backend/API.
+
 class OffersCouponsModule extends StatefulWidget {
   const OffersCouponsModule({super.key, required this.data});
   final KStoreAdminData data;
@@ -4376,76 +4389,1347 @@ class OffersCouponsModule extends StatefulWidget {
   State<OffersCouponsModule> createState() => _OffersCouponsModuleState();
 }
 
+class _CouponRule {
+  _CouponRule({
+    required this.code,
+    required this.type,
+    required this.value,
+    required this.minOrder,
+    required this.maxDiscount,
+    required this.usageLimit,
+    required this.start,
+    required this.end,
+    required this.categories,
+    required this.products,
+    required this.customerRule,
+    required this.stackable,
+    required this.freeDelivery,
+    this.active = true,
+  });
+
+  String code;
+  String type;
+  double value;
+  double minOrder;
+  double maxDiscount;
+  int usageLimit;
+  String start;
+  String end;
+  String categories;
+  String products;
+  String customerRule;
+  bool stackable;
+  bool freeDelivery;
+  bool active;
+}
+
+class _ComboOffer {
+  _ComboOffer({
+    required this.id,
+    required this.name,
+    required this.code,
+    required this.productIds,
+    required this.comboPrice,
+    required this.discountType,
+    required this.discountValue,
+    required this.freeDelivery,
+    required this.freeGift,
+    required this.giftName,
+    required this.minOrder,
+    required this.start,
+    required this.end,
+    required this.customerRule,
+    required this.autoAddAll,
+    this.active = true,
+  });
+
+  String id;
+  String name;
+  String code;
+  List<String> productIds;
+  double comboPrice;
+  String discountType;
+  double discountValue;
+  bool freeDelivery;
+  bool freeGift;
+  String giftName;
+  double minOrder;
+  String start;
+  String end;
+  String customerRule;
+  bool autoAddAll;
+  bool active;
+
+  double get mrpTotal {
+    return _OffersCouponsModuleState._currentProducts
+        .where((p) => productIds.contains(p.id))
+        .fold<double>(0, (sum, p) => sum + p.price);
+  }
+
+  double get saving {
+    if (discountType == 'Flat') {
+      return discountValue;
+    }
+    if (discountType == 'Percent') {
+      return mrpTotal * discountValue / 100;
+    }
+    if (comboPrice > 0) {
+      return mrpTotal - comboPrice;
+    }
+    return 0;
+  }
+}
+
 class _OffersCouponsModuleState extends State<OffersCouponsModule> {
+  static List<ProductAdmin> _currentProducts = <ProductAdmin>[];
+
+  // In-memory extended promotion data. These should eventually be stored
+  // in Firebase/API so the customer app and admin panel share the same data.
+  static final List<_CouponRule> _rules = <_CouponRule>[
+    _CouponRule(
+      code: 'WELCOME100',
+      type: 'Flat',
+      value: 100,
+      minOrder: 499,
+      maxDiscount: 100,
+      usageLimit: 100,
+      start: 'Immediately',
+      end: 'No expiry',
+      categories: 'All',
+      products: 'All',
+      customerRule: 'All customers',
+      stackable: false,
+      freeDelivery: false,
+    ),
+    _CouponRule(
+      code: 'SAVE20',
+      type: 'Percent',
+      value: 20,
+      minOrder: 999,
+      maxDiscount: 300,
+      usageLimit: 500,
+      start: 'Immediately',
+      end: 'No expiry',
+      categories: 'All',
+      products: 'All',
+      customerRule: 'All customers',
+      stackable: false,
+      freeDelivery: false,
+    ),
+  ];
+
+  static final List<_ComboOffer> _combos = <_ComboOffer>[
+    _ComboOffer(
+      id: 'COMBO001',
+      name: 'Herbal Wellness Combo',
+      code: 'HERBALCOMBO',
+      productIds: <String>['P002', 'P003'],
+      comboPrice: 599,
+      discountType: 'None',
+      discountValue: 0,
+      freeDelivery: true,
+      freeGift: false,
+      giftName: '',
+      minOrder: 0,
+      start: 'Immediately',
+      end: 'No expiry',
+      customerRule: 'All customers',
+      autoAddAll: true,
+    ),
+  ];
+
+  static final Map<String, bool> _flashSaleProducts = <String, bool>{};
+  static final Map<String, bool> _freeGiftProducts = <String, bool>{};
+
+  String _tab = 'Coupons';
+  String _search = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _currentProducts = widget.data.products;
+  }
+
+  void _snack(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text)),
+    );
+  }
+
+  List<ProductAdmin> get _products => widget.data.products;
+
+  List<_CouponRule> get _filteredRules {
+    final q = _search.trim().toLowerCase();
+    if (q.isEmpty) return _rules;
+    return _rules.where((r) =>
+        r.code.toLowerCase().contains(q) ||
+        r.customerRule.toLowerCase().contains(q)).toList();
+  }
+
+  List<_ComboOffer> get _filteredCombos {
+    final q = _search.trim().toLowerCase();
+    if (q.isEmpty) return _combos;
+    return _combos.where((c) =>
+        c.name.toLowerCase().contains(q) ||
+        c.code.toLowerCase().contains(q) ||
+        c.id.toLowerCase().contains(q)).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final activeCoupons = widget.data.coupons.where((c) => c.enabled).length;
+    final activeCombos = _combos.where((c) => c.active).length;
+
     return _Page(
       child: Column(
         children: [
           _ModuleHeader(
             title: 'Offers & Coupons',
-            subtitle: 'Create, edit, pause, activate and delete coupons',
+            subtitle:
+                'Coupons, combo offers, flash sales, free gifts and delivery rules',
             icon: Icons.local_offer_rounded,
             actions: [
-              _PrimaryButton(label: 'Create Coupon', icon: Icons.add_rounded, onPressed: () => _dialog()),
+              _PrimaryButton(
+                label: _tab == 'Combos' ? 'Create Combo' : 'Create Coupon',
+                icon: Icons.add_rounded,
+                onPressed: _tab == 'Combos'
+                    ? () => _comboEditor()
+                    : () => _couponEditor(),
+              ),
             ],
           ),
-          _StatsStrip(items: [
-            ['Coupons', '${widget.data.coupons.length}', Icons.local_offer_rounded],
-            ['Active', '${widget.data.coupons.where((c) => c.enabled).length}', Icons.check_circle_rounded],
-          ]),
+          _StatsStrip(
+            items: [
+              ['Coupons', '${widget.data.coupons.length}', Icons.local_offer_rounded],
+              ['Active Coupons', '$activeCoupons', Icons.check_circle_rounded],
+              ['Combo Offers', '${_combos.length}', Icons.inventory_2_rounded],
+              ['Active Combos', '$activeCombos', Icons.bolt_rounded],
+              ['Products', '${_products.length}', Icons.shopping_bag_rounded],
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildTabs(),
           const SizedBox(height: 10),
-          ...widget.data.coupons.map(
-            (c) => _AdminListCard(
-              title: c.code,
-              subtitle: '${c.description} • ${c.value}',
-              icon: Icons.local_offer_rounded,
-              color: const Color(0xFFFF9F0A),
-              enabled: c.enabled,
-              onToggle: (v) => setState(() => c.enabled = v),
-              actions: [
-                _ActionChip(label: 'Edit', icon: Icons.edit_rounded, onTap: () => _dialog(item: c)),
-                _ActionChip(label: 'Delete', icon: Icons.delete_outline_rounded, danger: true, onTap: () => setState(() => widget.data.coupons.remove(c))),
-              ],
-            ),
+          _SearchBox(
+            hint: 'Search coupons, combos or offer names',
+            onChanged: (v) => setState(() => _search = v),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: _buildTabBody(),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _dialog({CouponAdmin? item}) async {
-    final code = TextEditingController(text: item?.code ?? '');
-    final desc = TextEditingController(text: item?.description ?? '');
-    final value = TextEditingController(text: item?.value ?? '');
-    await showDialog(
-      context: context,
-      builder: (context) => _FormDialog(
-        title: item == null ? 'Create Coupon' : 'Edit Coupon',
-        children: [_Field(code, 'Coupon Code'), _Field(desc, 'Description'), _Field(value, 'Discount / Value')],
-        onSave: () {
-          setState(() {
-            if (item == null) {
-              widget.data.coupons.add(CouponAdmin(code.text.toUpperCase(), desc.text, value.text, true));
-            } else {
-              item.code = code.text.toUpperCase();
-              item.description = desc.text;
-              item.value = value.text;
-            }
-          });
-          Navigator.pop(context);
-        },
+  Widget _buildTabs() {
+    const tabs = [
+      ['Coupons', Icons.confirmation_num_rounded],
+      ['Combos', Icons.inventory_2_rounded],
+      ['Flash Sale', Icons.flash_on_rounded],
+      ['Free Delivery', Icons.local_shipping_rounded],
+      ['Free Gifts', Icons.card_giftcard_rounded],
+      ['Rules', Icons.tune_rounded],
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: tabs.map((t) {
+          final selected = _tab == t[0];
+          return Padding(
+            padding: const EdgeInsets.only(right: 7),
+            child: ChoiceChip(
+              selected: selected,
+              label: Text(t[0] as String),
+              avatar: Icon(t[1] as IconData, size: 17),
+              onSelected: (_) => setState(() => _tab = t[0] as String),
+            ),
+          );
+        }).toList(),
       ),
     );
-    code.dispose();
-    desc.dispose();
-    value.dispose();
+  }
+
+  Widget _buildTabBody() {
+    switch (_tab) {
+      case 'Combos':
+        return _comboList();
+      case 'Flash Sale':
+        return _flashSale();
+      case 'Free Delivery':
+        return _freeDelivery();
+      case 'Free Gifts':
+        return _freeGifts();
+      case 'Rules':
+        return _rulesPage();
+      default:
+        return _couponList();
+    }
+  }
+
+  Widget _couponList() {
+    final rulesByCode = <String, _CouponRule>{
+      for (final r in _rules) r.code: r,
+    };
+
+    return ListView(
+      children: [
+        _sectionCard(
+          title: 'Coupon Management',
+          icon: Icons.confirmation_num_rounded,
+          child: Column(
+            children: [
+              ...widget.data.coupons.where((c) {
+                final q = _search.toLowerCase().trim();
+                return q.isEmpty ||
+                    c.code.toLowerCase().contains(q) ||
+                    c.description.toLowerCase().contains(q);
+              }).map((c) {
+                final r = rulesByCode[c.code];
+                return _couponCard(c, r);
+              }),
+              if (widget.data.coupons.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text('No coupons created yet.'),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _sectionCard(
+          title: 'Coupon Rules',
+          icon: Icons.rule_rounded,
+          child: Column(
+            children: [
+              _ruleLine('Minimum order value', 'Supports ₹ amount threshold'),
+              _ruleLine('Maximum discount', 'Caps percentage coupons'),
+              _ruleLine('Usage limit', 'Total coupon usage control'),
+              _ruleLine('Product/category restriction', 'Limit where coupon works'),
+              _ruleLine('Customer eligibility', 'First order / VIP / wholesale etc.'),
+              _ruleLine('Stacking', 'Allow or block multiple offers together'),
+              _ruleLine('Free delivery', 'Coupon can include free delivery'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _couponCard(CouponAdmin c, _CouponRule? r) {
+    final type = r?.type ?? (c.value.contains('%') ? 'Percent' : 'Flat');
+    final value = r == null
+        ? c.value
+        : type == 'Percent'
+            ? '${r.value.toStringAsFixed(0)}%'
+            : '₹${r.value.toStringAsFixed(0)}';
+
+    return _AdminListCard(
+      title: c.code,
+      subtitle:
+          '${c.description} • $value • Min ₹${(r?.minOrder ?? 0).toStringAsFixed(0)}'
+          '${r?.freeDelivery == true ? ' • Free Delivery' : ''}',
+      icon: Icons.local_offer_rounded,
+      color: const Color(0xFFFF9F0A),
+      enabled: c.enabled,
+      onToggle: (v) => setState(() => c.enabled = v),
+      actions: [
+        _ActionChip(
+          label: 'Edit',
+          icon: Icons.edit_rounded,
+          onTap: () => _couponEditor(existing: c, rule: r),
+        ),
+        _ActionChip(
+          label: 'Details',
+          icon: Icons.info_outline_rounded,
+          onTap: () => _couponDetails(c, r),
+        ),
+        _ActionChip(
+          label: 'Delete',
+          icon: Icons.delete_outline_rounded,
+          danger: true,
+          onTap: () {
+            setState(() {
+              widget.data.coupons.remove(c);
+              _rules.removeWhere((x) => x.code == c.code);
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _comboList() {
+    final rows = _filteredCombos;
+
+    return ListView(
+      children: [
+        _sectionCard(
+          title: 'Combo Offers',
+          icon: Icons.inventory_2_rounded,
+          trailing: _PrimaryButton(
+            label: 'Create Combo',
+            icon: Icons.add_rounded,
+            onPressed: () => _comboEditor(),
+          ),
+          child: Column(
+            children: [
+              ...rows.map(_comboCard),
+              if (rows.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text('No combo offers found.'),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _sectionCard(
+          title: 'How Combo Works',
+          icon: Icons.shopping_cart_checkout_rounded,
+          child: Column(
+            children: const [
+              _ComboInfo(
+                number: '1',
+                title: 'Admin selects products',
+                text: 'Choose two or more products from the catalogue.',
+              ),
+              _ComboInfo(
+                number: '2',
+                title: 'Set the combo benefit',
+                text:
+                    'Choose a combo price, percentage/flat discount, free delivery and optional free gift.',
+              ),
+              _ComboInfo(
+                number: '3',
+                title: 'Customer taps the combo',
+                text:
+                    'The customer app reads autoAddAll=true and adds every selected product to the cart together.',
+              ),
+              _ComboInfo(
+                number: '4',
+                title: 'Checkout applies the rules',
+                text:
+                    'The combo discount, delivery benefit and eligible gift are applied according to the saved promotion rules.',
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _comboCard(_ComboOffer c) {
+    final names = _products
+        .where((p) => c.productIds.contains(p.id))
+        .map((p) => p.name)
+        .toList();
+
+    final benefit = <String>[
+      if (c.comboPrice > 0) 'Combo ₹${c.comboPrice.toStringAsFixed(0)}',
+      if (c.discountType != 'None')
+        '${c.discountType} ${c.discountValue.toStringAsFixed(0)}'
+            '${c.discountType == 'Percent' ? '%' : '₹'}',
+      if (c.freeDelivery) 'Free Delivery',
+      if (c.freeGift) 'Free Gift',
+      if (c.autoAddAll) 'Auto-add all products',
+    ].join(' • ');
+
+    return _AdminListCard(
+      title: '${c.name} • ${c.code}',
+      subtitle:
+          '${names.length} products • ${names.join(', ')}\n$benefit',
+      icon: Icons.inventory_2_rounded,
+      color: const Color(0xFF8B3DFF),
+      enabled: c.active,
+      onToggle: (v) => setState(() => c.active = v),
+      actions: [
+        _ActionChip(
+          label: 'Edit',
+          icon: Icons.edit_rounded,
+          onTap: () => _comboEditor(existing: c),
+        ),
+        _ActionChip(
+          label: 'Customer Preview',
+          icon: Icons.visibility_rounded,
+          onTap: () => _comboPreview(c),
+        ),
+        _ActionChip(
+          label: 'Delete',
+          icon: Icons.delete_outline_rounded,
+          danger: true,
+          onTap: () => setState(() => _combos.remove(c)),
+        ),
+      ],
+    );
+  }
+
+  Widget _flashSale() {
+    final products = _products;
+    return ListView(
+      children: [
+        _sectionCard(
+          title: 'Flash Sale Products',
+          icon: Icons.flash_on_rounded,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(bottom: 10),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Mark products for a scheduled flash sale. Sale pricing should be validated again at checkout.',
+                    style: TextStyle(color: Color(0xFF687180)),
+                  ),
+                ),
+              ),
+              ...products.map((p) {
+                final active = _flashSaleProducts[p.id] ?? false;
+                return SwitchListTile(
+                  value: active,
+                  onChanged: (v) => setState(() => _flashSaleProducts[p.id] = v),
+                  title: Text(p.name),
+                  subtitle: Text(
+                    '${p.id} • ₹${p.price.toStringAsFixed(0)} • Stock ${p.stock}',
+                  ),
+                  secondary: const Icon(Icons.flash_on_rounded),
+                );
+              }),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _freeDelivery() {
+    return ListView(
+      children: [
+        _sectionCard(
+          title: 'Free Delivery Rules',
+          icon: Icons.local_shipping_rounded,
+          child: Column(
+            children: [
+              _settingSwitch(
+                'Free delivery on minimum cart value',
+                'Default ₹999 threshold',
+                true,
+                (_) {},
+              ),
+              _settingSwitch(
+                'Allow combo offers to override delivery',
+                'A combo can carry its own free-delivery rule',
+                true,
+                (_) {},
+              ),
+              _settingSwitch(
+                'Allow coupon to give free delivery',
+                'Coupon can independently enable free delivery',
+                true,
+                (_) {},
+              ),
+              _settingSwitch(
+                'Block free delivery for selected PIN codes',
+                'Use the Delivery & Shipping module for PIN restrictions',
+                false,
+                (_) {},
+              ),
+              const SizedBox(height: 8),
+              _PrimaryButton(
+                label: 'Configure Delivery Settings',
+                icon: Icons.settings_rounded,
+                onPressed: () => _snack(
+                  'Use Delivery & Shipping for PIN-code and shipping-charge configuration.',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _freeGifts() {
+    return ListView(
+      children: [
+        _sectionCard(
+          title: 'Free Gift Eligibility',
+          icon: Icons.card_giftcard_rounded,
+          child: Column(
+            children: _products.map((p) {
+              final active = _freeGiftProducts[p.id] ?? false;
+              return SwitchListTile(
+                value: active,
+                onChanged: (v) => setState(() => _freeGiftProducts[p.id] = v),
+                title: Text(p.name),
+                subtitle: Text(
+                  'Eligible as a gift • SKU ${p.id}',
+                ),
+                secondary: const Icon(Icons.card_giftcard_rounded),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _rulesPage() {
+    return ListView(
+      children: [
+        _sectionCard(
+          title: 'Promotion Rules',
+          icon: Icons.tune_rounded,
+          child: Column(
+            children: [
+              _ruleLine(
+                'Stacking priority',
+                'Combo → Coupon → Free Delivery → Gift, subject to eligibility',
+              ),
+              _ruleLine(
+                'Minimum cart value',
+                'Offer can define its own minimum order value',
+              ),
+              _ruleLine(
+                'Maximum discount',
+                'Protects margins on percentage discounts',
+              ),
+              _ruleLine(
+                'Customer segments',
+                'All / First Order / VIP / Wholesale / Reseller / Affiliate',
+              ),
+              _ruleLine(
+                'Product restrictions',
+                'Specific products or categories',
+              ),
+              _ruleLine(
+                'Schedule',
+                'Start and end date/time for every promotion',
+              ),
+              _ruleLine(
+                'Usage limit',
+                'Total usage and per-customer limits',
+              ),
+              _ruleLine(
+                'Auto-add combo',
+                'When enabled, all combo products are added together',
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _sectionCard(
+          title: 'Important Customer-App Rule',
+          icon: Icons.info_outline_rounded,
+          child: const Text(
+            'The admin panel defines the combo. The customer-facing K - Store app must read the same combo record from the backend. When a customer taps a combo, the app should add every productId in that combo to the cart in one action, then apply the combo price/discount, free-delivery and gift rules.',
+            style: TextStyle(height: 1.5),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _couponEditor({
+    CouponAdmin? existing,
+    _CouponRule? rule,
+  }) async {
+    final code = TextEditingController(
+      text: existing?.code ?? 'NEW${DateTime.now().millisecondsSinceEpoch % 100000}',
+    );
+    final description =
+        TextEditingController(text: existing?.description ?? '');
+    final value = TextEditingController(
+      text: rule?.value.toString() ??
+          _numericCouponValue(existing?.value ?? '100').toString(),
+    );
+    final minOrder =
+        TextEditingController(text: (rule?.minOrder ?? 499).toString());
+    final maxDiscount =
+        TextEditingController(text: (rule?.maxDiscount ?? 0).toString());
+    final usageLimit =
+        TextEditingController(text: (rule?.usageLimit ?? 100).toString());
+    final categories =
+        TextEditingController(text: rule?.categories ?? 'All');
+    final products = TextEditingController(text: rule?.products ?? 'All');
+
+    var type = rule?.type ?? 'Flat';
+    var customerRule = rule?.customerRule ?? 'All customers';
+    var stackable = rule?.stackable ?? false;
+    var freeDelivery = rule?.freeDelivery ?? false;
+    var enabled = existing?.enabled ?? true;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, dialogSetState) {
+            return AlertDialog(
+              title: Text(existing == null ? 'Create Coupon' : 'Edit Coupon'),
+              content: SizedBox(
+                width: 520,
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      _dialogField(code, 'Coupon Code'),
+                      _dialogField(description, 'Offer Description'),
+                      DropdownButtonFormField<String>(
+                        initialValue: type,
+                        decoration: const InputDecoration(
+                          labelText: 'Discount Type',
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'Flat',
+                            child: Text('Flat ₹'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Percent',
+                            child: Text('Percentage %'),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) dialogSetState(() => type = v);
+                        },
+                      ),
+                      _dialogField(
+                        value,
+                        type == 'Percent'
+                            ? 'Discount Percentage'
+                            : 'Discount Amount',
+                        number: true,
+                      ),
+                      _dialogField(
+                        minOrder,
+                        'Minimum Order Value',
+                        number: true,
+                      ),
+                      _dialogField(
+                        maxDiscount,
+                        'Maximum Discount (0 = no cap)',
+                        number: true,
+                      ),
+                      _dialogField(
+                        usageLimit,
+                        'Total Usage Limit',
+                        number: true,
+                      ),
+                      _dialogField(
+                        categories,
+                        'Applicable Categories',
+                      ),
+                      _dialogField(
+                        products,
+                        'Applicable Products (IDs)',
+                      ),
+                      DropdownButtonFormField<String>(
+                        initialValue: customerRule,
+                        decoration: const InputDecoration(
+                          labelText: 'Customer Eligibility',
+                        ),
+                        items: const [
+                          'All customers',
+                          'First order',
+                          'VIP',
+                          'Wholesale',
+                          'Reseller',
+                          'Affiliate',
+                        ]
+                            .map(
+                              (v) => DropdownMenuItem(
+                                value: v,
+                                child: Text(v),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null) {
+                            dialogSetState(() => customerRule = v);
+                          }
+                        },
+                      ),
+                      SwitchListTile(
+                        title: const Text('Free Delivery'),
+                        value: freeDelivery,
+                        onChanged: (v) =>
+                            dialogSetState(() => freeDelivery = v),
+                      ),
+                      SwitchListTile(
+                        title: const Text('Allow stacking with other coupons'),
+                        value: stackable,
+                        onChanged: (v) =>
+                            dialogSetState(() => stackable = v),
+                      ),
+                      SwitchListTile(
+                        title: const Text('Active'),
+                        value: enabled,
+                        onChanged: (v) => dialogSetState(() => enabled = v),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final n = double.tryParse(value.text) ?? 0;
+                    final min = double.tryParse(minOrder.text) ?? 0;
+                    final max = double.tryParse(maxDiscount.text) ?? 0;
+                    final uses = int.tryParse(usageLimit.text) ?? 0;
+
+                    if (code.text.trim().isEmpty || n <= 0) {
+                      _snack('Enter a valid coupon code and discount value.');
+                      return;
+                    }
+
+                    final normalizedCode = code.text.trim().toUpperCase();
+                    final displayValue =
+                        type == 'Percent' ? '${n.toStringAsFixed(0)}%' : '₹${n.toStringAsFixed(0)}';
+
+                    setState(() {
+                      if (existing == null) {
+                        widget.data.coupons.add(
+                          CouponAdmin(
+                            normalizedCode,
+                            description.text.trim().isEmpty
+                                ? 'Promotional discount'
+                                : description.text.trim(),
+                            displayValue,
+                            enabled,
+                          ),
+                        );
+                      } else {
+                        existing.code = normalizedCode;
+                        existing.description = description.text.trim();
+                        existing.value = displayValue;
+                        existing.enabled = enabled;
+                      }
+
+                      _rules.removeWhere((x) =>
+                          x.code == (existing?.code ?? normalizedCode));
+                      _rules.removeWhere((x) => x.code == normalizedCode);
+                      _rules.add(
+                        _CouponRule(
+                          code: normalizedCode,
+                          type: type,
+                          value: n,
+                          minOrder: min,
+                          maxDiscount: max,
+                          usageLimit: uses,
+                          start: 'Immediately',
+                          end: 'No expiry',
+                          categories: categories.text.trim().isEmpty
+                              ? 'All'
+                              : categories.text.trim(),
+                          products: products.text.trim().isEmpty
+                              ? 'All'
+                              : products.text.trim(),
+                          customerRule: customerRule,
+                          stackable: stackable,
+                          freeDelivery: freeDelivery,
+                          active: enabled,
+                        ),
+                      );
+                    });
+
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Save Coupon'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    for (final c in [
+      code,
+      description,
+      value,
+      minOrder,
+      maxDiscount,
+      usageLimit,
+      categories,
+      products,
+    ]) {
+      c.dispose();
+    }
+  }
+
+  Future<void> _comboEditor({_ComboOffer? existing}) async {
+    final name =
+        TextEditingController(text: existing?.name ?? '');
+    final code =
+        TextEditingController(text: existing?.code ?? 'COMBO${_combos.length + 1}');
+    final comboPrice =
+        TextEditingController(text: existing?.comboPrice.toString() ?? '');
+    final discountValue =
+        TextEditingController(text: existing?.discountValue.toString() ?? '0');
+    final minOrder =
+        TextEditingController(text: existing?.minOrder.toString() ?? '0');
+    final start =
+        TextEditingController(text: existing?.start ?? 'Immediately');
+    final end =
+        TextEditingController(text: existing?.end ?? 'No expiry');
+    final giftName =
+        TextEditingController(text: existing?.giftName ?? '');
+
+    var discountType = existing?.discountType ?? 'None';
+    var freeDelivery = existing?.freeDelivery ?? false;
+    var freeGift = existing?.freeGift ?? false;
+    var autoAddAll = existing?.autoAddAll ?? true;
+    var active = existing?.active ?? true;
+    var customerRule = existing?.customerRule ?? 'All customers';
+    final selected = <String>{
+      ...existing?.productIds ?? <String>[],
+    };
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, dialogSetState) {
+            return AlertDialog(
+              title: Text(existing == null ? 'Create Combo Offer' : 'Edit Combo Offer'),
+              content: SizedBox(
+                width: 560,
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _dialogField(name, 'Combo Offer Name'),
+                      _dialogField(code, 'Combo Code'),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Select Products',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 5),
+                      if (_products.isEmpty)
+                        const Text('No products available.')
+                      else
+                        ..._products.map(
+                          (p) => CheckboxListTile(
+                            value: selected.contains(p.id),
+                            title: Text(p.name),
+                            subtitle: Text(
+                              '${p.id} • ₹${p.price.toStringAsFixed(0)} • Stock ${p.stock}',
+                            ),
+                            onChanged: (v) {
+                              dialogSetState(() {
+                                if (v == true) {
+                                  selected.add(p.id);
+                                } else {
+                                  selected.remove(p.id);
+                                }
+                              });
+                            },
+                          ),
+                        ),
+                      const Divider(),
+                      _dialogField(
+                        comboPrice,
+                        'Combo Fixed Price (optional)',
+                        number: true,
+                      ),
+                      DropdownButtonFormField<String>(
+                        initialValue: discountType,
+                        decoration: const InputDecoration(
+                          labelText: 'Additional Discount',
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'None',
+                            child: Text('No additional discount'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Flat',
+                            child: Text('Flat ₹ discount'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Percent',
+                            child: Text('Percentage % discount'),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) {
+                            dialogSetState(() => discountType = v);
+                          }
+                        },
+                      ),
+                      if (discountType != 'None')
+                        _dialogField(
+                          discountValue,
+                          discountType == 'Percent'
+                              ? 'Discount %'
+                              : 'Discount ₹',
+                          number: true,
+                        ),
+                      _dialogField(
+                        minOrder,
+                        'Minimum Order Value',
+                        number: true,
+                      ),
+                      DropdownButtonFormField<String>(
+                        initialValue: customerRule,
+                        decoration: const InputDecoration(
+                          labelText: 'Customer Eligibility',
+                        ),
+                        items: const [
+                          'All customers',
+                          'First order',
+                          'VIP',
+                          'Wholesale',
+                          'Reseller',
+                          'Affiliate',
+                        ]
+                            .map(
+                              (v) => DropdownMenuItem(
+                                value: v,
+                                child: Text(v),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null) {
+                            dialogSetState(() => customerRule = v);
+                          }
+                        },
+                      ),
+                      _dialogField(start, 'Start Date / Time'),
+                      _dialogField(end, 'End Date / Time'),
+                      SwitchListTile(
+                        title: const Text('Free Delivery'),
+                        subtitle: const Text(
+                          'This combo can override the normal delivery charge.',
+                        ),
+                        value: freeDelivery,
+                        onChanged: (v) =>
+                            dialogSetState(() => freeDelivery = v),
+                      ),
+                      SwitchListTile(
+                        title: const Text('Free Gift'),
+                        value: freeGift,
+                        onChanged: (v) =>
+                            dialogSetState(() => freeGift = v),
+                      ),
+                      if (freeGift)
+                        _dialogField(giftName, 'Gift Product / SKU'),
+                      SwitchListTile(
+                        title: const Text('Auto-add all combo products'),
+                        subtitle: const Text(
+                          'Customer taps the combo and every selected product is added to cart.',
+                        ),
+                        value: autoAddAll,
+                        onChanged: (v) =>
+                            dialogSetState(() => autoAddAll = v),
+                      ),
+                      SwitchListTile(
+                        title: const Text('Active'),
+                        value: active,
+                        onChanged: (v) =>
+                            dialogSetState(() => active = v),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    if (name.text.trim().isEmpty || selected.length < 2) {
+                      _snack('Select at least 2 products and enter a combo name.');
+                      return;
+                    }
+
+                    final price = double.tryParse(comboPrice.text) ?? 0;
+                    final dv = double.tryParse(discountValue.text) ?? 0;
+                    final minimum = double.tryParse(minOrder.text) ?? 0;
+
+                    setState(() {
+                      if (existing == null) {
+                        _combos.add(
+                          _ComboOffer(
+                            id: 'COMBO${DateTime.now().millisecondsSinceEpoch}',
+                            name: name.text.trim(),
+                            code: code.text.trim().toUpperCase(),
+                            productIds: selected.toList(),
+                            comboPrice: price,
+                            discountType: discountType,
+                            discountValue: dv,
+                            freeDelivery: freeDelivery,
+                            freeGift: freeGift,
+                            giftName: giftName.text.trim(),
+                            minOrder: minimum,
+                            start: start.text.trim(),
+                            end: end.text.trim(),
+                            customerRule: customerRule,
+                            autoAddAll: autoAddAll,
+                            active: active,
+                          ),
+                        );
+                      } else {
+                        existing.name = name.text.trim();
+                        existing.code = code.text.trim().toUpperCase();
+                        existing.productIds = selected.toList();
+                        existing.comboPrice = price;
+                        existing.discountType = discountType;
+                        existing.discountValue = dv;
+                        existing.freeDelivery = freeDelivery;
+                        existing.freeGift = freeGift;
+                        existing.giftName = giftName.text.trim();
+                        existing.minOrder = minimum;
+                        existing.start = start.text.trim();
+                        existing.end = end.text.trim();
+                        existing.customerRule = customerRule;
+                        existing.autoAddAll = autoAddAll;
+                        existing.active = active;
+                      }
+                    });
+
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Save Combo'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    for (final c in [
+      name,
+      code,
+      comboPrice,
+      discountValue,
+      minOrder,
+      start,
+      end,
+      giftName,
+    ]) {
+      c.dispose();
+    }
+  }
+
+  Future<void> _comboPreview(_ComboOffer combo) async {
+    final products = _products
+        .where((p) => combo.productIds.contains(p.id))
+        .toList();
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Customer Combo Preview'),
+        content: SizedBox(
+          width: 500,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                combo.name,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text('Combo code: ${combo.code}'),
+              const SizedBox(height: 10),
+              ...products.map(
+                (p) => ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.check_circle_rounded),
+                  title: Text(p.name),
+                  trailing: Text('₹${p.price.toStringAsFixed(0)}'),
+                ),
+              ),
+              const Divider(),
+              Text(
+                combo.autoAddAll
+                    ? 'ON TAP → ${products.length} products will be added to cart.'
+                    : 'Auto-add is disabled.',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              if (combo.freeDelivery)
+                const Text('✓ Free delivery'),
+              if (combo.freeGift)
+                Text('✓ Free gift: ${combo.giftName}'),
+              if (combo.discountType != 'None')
+                Text(
+                  '✓ ${combo.discountType} discount: ${combo.discountValue}',
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _couponDetails(CouponAdmin coupon, _CouponRule? rule) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(coupon.code),
+        content: Text(
+          [
+            'Description: ${coupon.description}',
+            'Value: ${coupon.value}',
+            'Minimum order: ₹${(rule?.minOrder ?? 0).toStringAsFixed(0)}',
+            'Maximum discount: ₹${(rule?.maxDiscount ?? 0).toStringAsFixed(0)}',
+            'Usage limit: ${rule?.usageLimit ?? 'Not set'}',
+            'Categories: ${rule?.categories ?? 'All'}',
+            'Products: ${rule?.products ?? 'All'}',
+            'Customer: ${rule?.customerRule ?? 'All customers'}',
+            'Free delivery: ${rule?.freeDelivery == true ? 'Yes' : 'No'}',
+            'Stackable: ${rule?.stackable == true ? 'Yes' : 'No'}',
+          ].join('\n'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionCard({
+    required String title,
+    required IconData icon,
+    required Widget child,
+    Widget? trailing,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: const Color(0xFFECEEF3)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: const Color(0xFFFF315B)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              if (trailing != null) trailing,
+            ],
+          ),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _ruleLine(String title, String text) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.check_circle_outline_rounded),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+      subtitle: Text(text),
+    );
+  }
+
+  Widget _settingSwitch(
+    String title,
+    String subtitle,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(title),
+      subtitle: Text(subtitle),
+      value: value,
+      onChanged: onChanged,
+    );
+  }
+
+  Widget _dialogField(
+    TextEditingController controller,
+    String label, {
+    bool number = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: TextField(
+        controller: controller,
+        keyboardType: number ? TextInputType.number : TextInputType.text,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
+
+  double _numericCouponValue(String value) {
+    return double.tryParse(
+          value.replaceAll(RegExp(r'[^0-9.]'), ''),
+        ) ??
+        100;
   }
 }
 
-// -----------------------------------------------------------------------------
-// PAYMENTS
-// -----------------------------------------------------------------------------
+class _ComboInfo extends StatelessWidget {
+  const _ComboInfo({
+    required this.number,
+    required this.title,
+    required this.text,
+  });
+
+  final String number;
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        backgroundColor: const Color(0xFFFFEFF5),
+        foregroundColor: const Color(0xFFFF315B),
+        child: Text(number),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+      subtitle: Text(text),
+    );
+  }
+}
 
 class PaymentsModule extends StatefulWidget {
   const PaymentsModule({super.key, required this.data});
