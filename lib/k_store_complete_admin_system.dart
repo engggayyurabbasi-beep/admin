@@ -13690,13 +13690,13 @@ class _AffiliatesModuleState extends State<AffiliatesModule> {
                         isDense: true,
                       ),
                       onChanged: (value) {
-                        setState(() => _search = value);
+                        setState(() => _affiliateSearch = value);
                       },
                     ),
                   ),
                   DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
-                      value: _filter,
+                      value: _affiliateFilter,
                       items: const [
                         DropdownMenuItem(
                           value: 'All',
@@ -13713,7 +13713,7 @@ class _AffiliatesModuleState extends State<AffiliatesModule> {
                       ],
                       onChanged: (value) {
                         if (value == null) return;
-                        setState(() => _filter = value);
+                        setState(() => _affiliateFilter = value);
                       },
                     ),
                   ),
@@ -13892,7 +13892,7 @@ class _AffiliatesModuleState extends State<AffiliatesModule> {
   }
 
   List<AffiliateAdmin> get _filteredAffiliates {
-    final query = _search.trim().toLowerCase();
+    final query = _affiliateSearch.trim().toLowerCase();
 
     return widget.data.affiliates.where((affiliate) {
       final matchesSearch = query.isEmpty ||
@@ -13900,9 +13900,9 @@ class _AffiliatesModuleState extends State<AffiliatesModule> {
           affiliate.id.toLowerCase().contains(query) ||
           affiliate.email.toLowerCase().contains(query);
 
-      final matchesFilter = _filter == 'All' ||
-          (_filter == 'Active' && affiliate.enabled) ||
-          (_filter == 'Paused' && !affiliate.enabled);
+      final matchesFilter = _affiliateFilter == 'All' ||
+          (_affiliateFilter == 'Active' && affiliate.enabled) ||
+          (_affiliateFilter == 'Paused' && !affiliate.enabled);
 
       return matchesSearch && matchesFilter;
     }).toList();
