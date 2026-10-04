@@ -9907,8 +9907,11 @@ class _CustomOrdersModuleState extends State<CustomOrdersModule> {
 // VENDORS
 // -----------------------------------------------------------------------------
 
+import 'package:flutter/material.dart';
+
 class VendorsModule extends StatefulWidget {
   const VendorsModule({super.key, required this.data});
+
   final KStoreAdminData data;
 
   @override
@@ -9916,53 +9919,1062 @@ class VendorsModule extends StatefulWidget {
 }
 
 class _VendorsModuleState extends State<VendorsModule> {
+  String _search = '';
+  String _filter = 'All';
+  String _sort = 'Newest';
+  String _selectedTab = 'Overview';
+
+  final Map<String, _VendorDetails> _details = {};
+
+  @override
+  void initState() {
+    super.initState();
+    for (final vendor in widget.data.vendors) {
+      _details.putIfAbsent(vendor.id, () => _VendorDetails.seed(vendor));
+    }
+  }
+
+  List<PartnerAdmin> get _filteredVendors {
+    final query = _search.trim().toLowerCase();
+    final result = widget.data.vendors.where((vendor) {
+      final matchesSearch = query.isEmpty ||
+          vendor.name.toLowerCase().contains(query) ||
+          vendor.id.toLowerCase().contains(query) ||
+          vendor.email.toLowerCase().contains(query) ||
+          (_details[vendor.id]?.owner ?? '').toLowerCase().contains(query);
+
+      final matchesFilter = _filter == 'All' ||
+          (_filter == 'Active' && vendor.enabled) ||
+          (_filter == 'Paused' && !vendor.enabled) ||
+          (_filter == 'Pending' && vendor.status == 'Pending') ||
+          (_filter == 'Approved' && vendor.status == 'Approved');
+
+      return matchesSearch && matchesFilter;
+    }).toList();
+
+    if (_sort == 'A-Z') {
+      result.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    } else if (_sort == 'Status') {
+      result.sort((a, b) => a.status.compareTo(b.status));
+    }
+
+    return result;
+  }
+
+  int get _activeCount => widget.data.vendors.where((v) => v.enabled).length;
+  int get _pendingCount =>
+      widget.data.vendors.where((v) => v.status == 'Pending').length;
+  int get _pausedCount =>
+      widget.data.vendors.where((v) => !v.enabled).length;
+
   @override
   Widget build(BuildContext context) {
-    return _PartnerModule(
-      title: 'Vendors',
-      subtitle: 'Add, approve, edit, pause, activate and delete vendors',
-      icon: Icons.store_rounded,
-      color: const Color(0xFF8B3DFF),
-      items: widget.data.vendors,
-      onAdd: () => _dialog(),
-      onEdit: (p) => _dialog(item: p),
-      onDelete: (p) => setState(() => widget.data.vendors.remove(p)),
-      onToggle: (p, v) => setState(() => p.enabled = v),
+    final vendors = _filteredVendors;
+
+    return _Page(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _ModuleHeader(
+            title: 'Vendors',
+            subtitle:
+                'Manage onboarding, KYC, products, orders, commission, payouts and vendor accounts',
+            icon: Icons.store_rounded,
+            actions: [
+              _PrimaryButton(
+                label: 'Add Vendor',
+                icon: Icons.add_business_rounded,
+                onPressed: () => _openVendorForm(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _buildStats(),
+          const SizedBox(height: 14),
+          _buildManagementGrid(),
+          const SizedBox(height: 14),
+          _buildToolbar(),
+          const SizedBox(height: 12),
+          if (vendors.isEmpty)
+            _emptyState()
+          else
+            ...vendors.map(_vendorCard),
+        ],
+      ),
     );
   }
 
-  Future<void> _dialog({PartnerAdmin? item}) async {
-    final id = TextEditingController(text: item?.id ?? 'V${DateTime.now().millisecondsSinceEpoch}');
-    final name = TextEditingController(text: item?.name ?? '');
-    final email = TextEditingController(text: item?.email ?? '');
-    await showDialog(
-      context: context,
-      builder: (context) => _FormDialog(
-        title: item == null ? 'Add Vendor' : 'Edit Vendor',
-        children: [_Field(id, 'Vendor ID'), _Field(name, 'Vendor Name'), _Field(email, 'Email')],
-        onSave: () {
-          setState(() {
-            if (item == null) {
-              widget.data.vendors.add(PartnerAdmin(id.text, name.text, email.text, 'Pending', true));
-            } else {
-              item.id = id.text;
-              item.name = name.text;
-              item.email = email.text;
-            }
-          });
-          Navigator.pop(context);
-        },
+  Widget _buildStats() {
+    final total = widget.data.vendors.length;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 900 ? 4 : 2;
+        final width =
+            (constraints.maxWidth - ((columns - 1) * 10)) / columns;
+
+        final cards = [
+          _VendorStat(
+            'Total Vendors',
+            '$total',
+            Icons.store_rounded,
+            const Color(0xFF7C3AED),
+          ),
+          _VendorStat(
+            'Active',
+            '$_activeCount',
+            Icons.verified_rounded,
+            const Color(0xFF159A6C),
+          ),
+          _VendorStat(
+            'Pending KYC',
+            '$_pendingCount',
+            Icons.pending_actions_rounded,
+            const Color(0xFFF59E0B),
+          ),
+          _VendorStat(
+            'Paused',
+            '$_pausedCount',
+            Icons.pause_circle_rounded,
+            const Color(0xFF64748B),
+          ),
+        ];
+
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: cards
+              .map((card) => SizedBox(width: width, child: card))
+              .toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildManagementGrid() {
+    final items = [
+      _VendorQuickAction(
+        'Applications',
+        'Approve or reject',
+        Icons.how_to_reg_rounded,
+        () => _showApplications(),
+      ),
+      _VendorQuickAction(
+        'Products',
+        'Vendor catalog',
+        Icons.inventory_2_rounded,
+        () => _showInfo('Vendor Products',
+            'Approve listings, prices, stock, SKU and product status.'),
+      ),
+      _VendorQuickAction(
+        'Orders',
+        'Fulfilment',
+        Icons.shopping_bag_rounded,
+        () => _showInfo('Vendor Orders',
+            'Review vendor-wise orders, packing, shipping, delivery and returns.'),
+      ),
+      _VendorQuickAction(
+        'Commission',
+        'Rates & slabs',
+        Icons.percent_rounded,
+        () => _showInfo('Vendor Commission',
+            'Set vendor commission percentage, slabs and settlement rules.'),
+      ),
+      _VendorQuickAction(
+        'Payouts',
+        'Payments',
+        Icons.payments_rounded,
+        () => _showInfo('Vendor Payouts',
+            'Review payable balance, payout requests and payment history.'),
+      ),
+      _VendorQuickAction(
+        'KYC & Documents',
+        'Verification',
+        Icons.folder_shared_rounded,
+        () => _showInfo('KYC & Documents',
+            'Verify PAN, GST, bank account and required vendor documents.'),
+      ),
+      _VendorQuickAction(
+        'Wallet',
+        'Balance & ledger',
+        Icons.account_balance_wallet_rounded,
+        () => _showInfo('Vendor Wallet',
+            'Track available balance, pending balance, credits, debits and withdrawals.'),
+      ),
+      _VendorQuickAction(
+        'Reports',
+        'Performance',
+        Icons.analytics_rounded,
+        () => _showInfo('Vendor Reports',
+            'Sales, orders, products, commission, payouts and vendor performance.'),
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 900 ? 4 : 2;
+        final width =
+            (constraints.maxWidth - ((columns - 1) * 10)) / columns;
+
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: items
+              .map((item) => SizedBox(width: width, child: item))
+              .toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildToolbar() {
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            TextField(
+              onChanged: (value) => setState(() => _search = value),
+              decoration: InputDecoration(
+                hintText: 'Search vendor, owner, ID or email...',
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: _search.isEmpty
+                    ? null
+                    : IconButton(
+                        onPressed: () => setState(() => _search = ''),
+                        icon: const Icon(Icons.clear_rounded),
+                      ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 10),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final filter in const [
+                    'All',
+                    'Active',
+                    'Pending',
+                    'Approved',
+                    'Paused',
+                  ])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 7),
+                      child: ChoiceChip(
+                        label: Text(filter),
+                        selected: _filter == filter,
+                        onSelected: (_) => setState(() => _filter = filter),
+                      ),
+                    ),
+                  const SizedBox(width: 4),
+                  DropdownButton<String>(
+                    value: _sort,
+                    underline: const SizedBox.shrink(),
+                    items: const [
+                      DropdownMenuItem(value: 'Newest', child: Text('Newest')),
+                      DropdownMenuItem(value: 'A-Z', child: Text('A-Z')),
+                      DropdownMenuItem(
+                          value: 'Status', child: Text('Status')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setState(() => _sort = value);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
-    id.dispose();
+  }
+
+  Widget _vendorCard(PartnerAdmin vendor) {
+    final detail =
+        _details.putIfAbsent(vendor.id, () => _VendorDetails.seed(vendor));
+    final status = vendor.status;
+    final statusColor = status == 'Approved'
+        ? const Color(0xFF159A6C)
+        : status == 'Pending'
+            ? const Color(0xFFF59E0B)
+            : const Color(0xFF64748B);
+
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(15),
+                    color: const Color(0xFFF0E6FF),
+                  ),
+                  child: const Icon(
+                    Icons.store_rounded,
+                    color: Color(0xFF7C3AED),
+                    size: 27,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${vendor.name} • ${vendor.id}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${detail.owner.isEmpty ? 'Owner not added' : detail.owner} • ${vendor.email}',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 13,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 7),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 5,
+                        children: [
+                          _statusBadge(status, statusColor),
+                          _statusBadge(
+                            vendor.enabled ? 'Active Account' : 'Paused',
+                            vendor.enabled
+                                ? const Color(0xFF159A6C)
+                                : const Color(0xFF64748B),
+                          ),
+                          _statusBadge(
+                            'KYC ${detail.kyc}',
+                            detail.kyc == 'Verified'
+                                ? const Color(0xFF159A6C)
+                                : const Color(0xFFF59E0B),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: vendor.enabled,
+                  onChanged: (value) {
+                    setState(() => vendor.enabled = value);
+                    _message(value ? 'Vendor activated' : 'Vendor paused');
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _smallAction(
+                  'View',
+                  Icons.visibility_outlined,
+                  () => _showVendorDetails(vendor),
+                ),
+                _smallAction(
+                  'Edit',
+                  Icons.edit_outlined,
+                  () => _openVendorForm(vendor),
+                ),
+                _smallAction(
+                  vendor.enabled ? 'Pause' : 'Activate',
+                  vendor.enabled
+                      ? Icons.pause_circle_outline
+                      : Icons.play_circle_outline,
+                  () => setState(() => vendor.enabled = !vendor.enabled),
+                ),
+                _smallAction(
+                  'KYC',
+                  Icons.verified_user_outlined,
+                  () => _showKyc(vendor),
+                ),
+                _smallAction(
+                  'Wallet',
+                  Icons.account_balance_wallet_outlined,
+                  () => _showWallet(vendor),
+                ),
+                _smallAction(
+                  'Delete',
+                  Icons.delete_outline_rounded,
+                  () => _deleteVendor(vendor),
+                  danger: true,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statusBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w700,
+          fontSize: 11,
+        ),
+      ),
+    );
+  }
+
+  Widget _smallAction(
+    String label,
+    IconData icon,
+    VoidCallback onTap, {
+    bool danger = false,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor:
+            danger ? const Color(0xFFD92D20) : const Color(0xFF344054),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(11),
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyState() {
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(34),
+        child: Column(
+          children: [
+            const Icon(Icons.store_mall_directory_outlined,
+                size: 52, color: Color(0xFF7C3AED)),
+            const SizedBox(height: 10),
+            const Text(
+              'No vendors found',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              'Try another search/filter or add a new vendor.',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 14),
+            _PrimaryButton(
+              label: 'Add Vendor',
+              icon: Icons.add_business_rounded,
+              onPressed: () => _openVendorForm(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openVendorForm([PartnerAdmin? vendor]) async {
+    final detail = vendor == null
+        ? _VendorDetails()
+        : _details.putIfAbsent(
+            vendor.id, () => _VendorDetails.seed(vendor));
+
+    final name = TextEditingController(text: vendor?.name ?? '');
+    final owner = TextEditingController(text: detail.owner);
+    final mobile = TextEditingController(text: detail.mobile);
+    final email = TextEditingController(text: vendor?.email ?? '');
+    final gst = TextEditingController(text: detail.gst);
+    final pan = TextEditingController(text: detail.pan);
+    final address = TextEditingController(text: detail.address);
+    final commission =
+        TextEditingController(text: detail.commission.toString());
+    final bank = TextEditingController(text: detail.bank);
+    final ifsc = TextEditingController(text: detail.ifsc);
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(vendor == null ? 'Add Vendor' : 'Edit Vendor'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                _dialogField(name, 'Business / Vendor Name'),
+                _dialogField(owner, 'Owner Name'),
+                _dialogField(mobile, 'Mobile', keyboard: TextInputType.phone),
+                _dialogField(email, 'Email', keyboard: TextInputType.emailAddress),
+                _dialogField(gst, 'GSTIN'),
+                _dialogField(pan, 'PAN'),
+                _dialogField(address, 'Business Address', lines: 3),
+                _dialogField(
+                  commission,
+                  'Commission %',
+                  keyboard: const TextInputType.numberWithOptions(decimal: true),
+                ),
+                _dialogField(bank, 'Bank Account'),
+                _dialogField(ifsc, 'IFSC'),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              if (name.text.trim().isEmpty) {
+                _message('Vendor name is required');
+                return;
+              }
+
+              final commissionValue =
+                  double.tryParse(commission.text.trim()) ?? 0;
+
+              setState(() {
+                if (vendor == null) {
+                  final newVendor = PartnerAdmin(
+                    'V${DateTime.now().millisecondsSinceEpoch}',
+                    name.text.trim(),
+                    email.text.trim(),
+                    'Pending',
+                    true,
+                  );
+                  widget.data.vendors.add(newVendor);
+                  _details[newVendor.id] = _VendorDetails(
+                    owner: owner.text.trim(),
+                    mobile: mobile.text.trim(),
+                    gst: gst.text.trim(),
+                    pan: pan.text.trim(),
+                    address: address.text.trim(),
+                    commission: commissionValue,
+                    bank: bank.text.trim(),
+                    ifsc: ifsc.text.trim(),
+                  );
+                } else {
+                  vendor.name = name.text.trim();
+                  vendor.email = email.text.trim();
+                  _details[vendor.id] = _VendorDetails(
+                    owner: owner.text.trim(),
+                    mobile: mobile.text.trim(),
+                    gst: gst.text.trim(),
+                    pan: pan.text.trim(),
+                    address: address.text.trim(),
+                    commission: commissionValue,
+                    bank: bank.text.trim(),
+                    ifsc: ifsc.text.trim(),
+                    kyc: detail.kyc,
+                    wallet: detail.wallet,
+                  );
+                }
+              });
+
+              Navigator.pop(dialogContext);
+              _message(vendor == null ? 'Vendor added' : 'Vendor updated');
+            },
+            icon: const Icon(Icons.save_rounded),
+            label: Text(vendor == null ? 'Create Vendor' : 'Save Changes'),
+          ),
+        ],
+      ),
+    );
+
     name.dispose();
+    owner.dispose();
+    mobile.dispose();
     email.dispose();
+    gst.dispose();
+    pan.dispose();
+    address.dispose();
+    commission.dispose();
+    bank.dispose();
+    ifsc.dispose();
+  }
+
+  Widget _dialogField(
+    TextEditingController controller,
+    String label, {
+    TextInputType? keyboard,
+    int lines = 1,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboard,
+        maxLines: lines,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
+
+  void _showVendorDetails(PartnerAdmin vendor) {
+    final detail =
+        _details.putIfAbsent(vendor.id, () => _VendorDetails.seed(vendor));
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('${vendor.name} • ${vendor.id}'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _detailRow('Status', vendor.status),
+                _detailRow('Account', vendor.enabled ? 'Active' : 'Paused'),
+                _detailRow('Owner', detail.owner),
+                _detailRow('Mobile', detail.mobile),
+                _detailRow('Email', vendor.email),
+                _detailRow('GSTIN', detail.gst),
+                _detailRow('PAN', detail.pan),
+                _detailRow('Commission', '${detail.commission}%'),
+                _detailRow('KYC', detail.kyc),
+                _detailRow('Wallet', '₹${detail.wallet.toStringAsFixed(0)}'),
+                _detailRow('Address', detail.address),
+                _detailRow('Bank', detail.bank),
+                _detailRow('IFSC', detail.ifsc),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _openVendorForm(vendor);
+            },
+            child: const Text('Edit Vendor'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showKyc(PartnerAdmin vendor) {
+    final detail =
+        _details.putIfAbsent(vendor.id, () => _VendorDetails.seed(vendor));
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('KYC • ${vendor.name}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.badge_outlined),
+              title: const Text('PAN'),
+              subtitle: Text(
+                  detail.pan.isEmpty ? 'Not submitted' : detail.pan),
+            ),
+            ListTile(
+              leading: const Icon(Icons.receipt_long_outlined),
+              title: const Text('GSTIN'),
+              subtitle: Text(
+                  detail.gst.isEmpty ? 'Not submitted' : detail.gst),
+            ),
+            ListTile(
+              leading: const Icon(Icons.account_balance_outlined),
+              title: const Text('Bank'),
+              subtitle: Text(
+                  detail.bank.isEmpty ? 'Not submitted' : detail.bank),
+            ),
+            ListTile(
+              leading: const Icon(Icons.verified_user_outlined),
+              title: const Text('Current status'),
+              subtitle: Text(detail.kyc),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              setState(() => detail.kyc = 'Rejected');
+              Navigator.pop(dialogContext);
+            },
+            child: const Text('Reject'),
+          ),
+          FilledButton(
+            onPressed: () {
+              setState(() {
+                detail.kyc = 'Verified';
+                vendor.status = 'Approved';
+              });
+              Navigator.pop(dialogContext);
+              _message('Vendor KYC approved');
+            },
+            child: const Text('Approve KYC'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showWallet(PartnerAdmin vendor) {
+    final detail =
+        _details.putIfAbsent(vendor.id, () => _VendorDetails.seed(vendor));
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Vendor Wallet • ${vendor.name}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _walletTile('Available Balance', detail.wallet, Icons.account_balance_wallet_rounded),
+            _walletTile('Pending Settlement', detail.pendingWallet, Icons.pending_actions_rounded),
+            _walletTile('Commission', detail.commission, Icons.percent_rounded),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _message('Payout workflow opened');
+            },
+            icon: const Icon(Icons.payments_rounded),
+            label: const Text('Create Payout'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _walletTile(String title, double value, IconData icon) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      trailing: Text(
+        title == 'Commission'
+            ? '${value.toStringAsFixed(1)}%'
+            : '₹${value.toStringAsFixed(0)}',
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+
+  void _showApplications() {
+    final pending =
+        widget.data.vendors.where((v) => v.status == 'Pending').toList();
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Vendor Applications'),
+        content: SizedBox(
+          width: 520,
+          child: pending.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text('No pending vendor applications.'),
+                )
+              : ListView(
+                  shrinkWrap: true,
+                  children: pending.map((vendor) {
+                    return ListTile(
+                      leading: const Icon(Icons.store_rounded),
+                      title: Text(vendor.name),
+                      subtitle: Text(vendor.email),
+                      trailing: TextButton(
+                        onPressed: () {
+                          setState(() => vendor.status = 'Approved');
+                          Navigator.pop(dialogContext);
+                          _message('Vendor approved');
+                        },
+                        child: const Text('Approve'),
+                      ),
+                    );
+                  }).toList(),
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showInfo(String title, String description) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(description),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteVendor(PartnerAdmin vendor) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Vendor?'),
+        content: Text(
+          'This will remove ${vendor.name} from the current admin data.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              setState(() {
+                widget.data.vendors.remove(vendor);
+                _details.remove(vendor.id);
+              });
+              Navigator.pop(dialogContext);
+              _message('Vendor deleted');
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _message(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 105,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          Expanded(child: Text(value.isEmpty ? 'Not added' : value)),
+        ],
+      ),
+    );
   }
 }
 
-// -----------------------------------------------------------------------------
-// RESELLERS
-// -----------------------------------------------------------------------------
+class _VendorDetails {
+  _VendorDetails({
+    this.owner = '',
+    this.mobile = '',
+    this.gst = '',
+    this.pan = '',
+    this.address = '',
+    this.commission = 0,
+    this.bank = '',
+    this.ifsc = '',
+    this.kyc = 'Pending',
+    this.wallet = 0,
+    this.pendingWallet = 0,
+  });
+
+  factory _VendorDetails.seed(PartnerAdmin vendor) {
+    return _VendorDetails(
+      kyc: vendor.status == 'Approved' ? 'Verified' : 'Pending',
+    );
+  }
+
+  String owner;
+  String mobile;
+  String gst;
+  String pan;
+  String address;
+  double commission;
+  String bank;
+  String ifsc;
+  String kyc;
+  double wallet;
+  double pendingWallet;
+}
+
+class _VendorStat extends StatelessWidget {
+  const _VendorStat(this.title, this.value, this.icon, this.color);
+
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: .10),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, color: color),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 20,
+                    ),
+                  ),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VendorQuickAction extends StatelessWidget {
+  const _VendorQuickAction(
+    this.title,
+    this.subtitle,
+    this.icon,
+    this.onTap,
+  );
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0E6FF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.dashboard_customize_rounded,
+                color: Color(0xFF7C3AED),
+                size: 21,
+              ),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class ResellersModule extends StatefulWidget {
   const ResellersModule({super.key, required this.data});
