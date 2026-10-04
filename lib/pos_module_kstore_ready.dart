@@ -24,7 +24,7 @@ class _PosModuleState extends State<PosModule> {
   ];
   final List<_PosCartItem> _cart = [];
   final List<_PosSale> _sales = [];
-  final List<_PosSale> _held = [];
+  final List<_PosSaleDraft> _held = [];
   final List<_PosReturn> _returns = [];
 
   String _payment = 'Cash';
@@ -388,7 +388,7 @@ class _PosModuleState extends State<PosModule> {
 
   Widget _cartCard() {
     final subtotal = _subtotal;
-    final discount = _discount.clamp(0, subtotal);
+    final discount = _discount.clamp(0, subtotal).toDouble();
     final tax = (subtotal - discount) * _taxPercent / 100;
     final total = subtotal - discount + tax;
     return Card(
@@ -1039,7 +1039,7 @@ class _PosModuleState extends State<PosModule> {
   }
 
   void _invoiceDialog(_PosSale sale, {bool completed = false}) {
-    final change = _cashReceived > sale.total ? _cashReceived - sale.total : 0;
+    final change = _cashReceived > sale.total ? _cashReceived - sale.total : 0.0;
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
