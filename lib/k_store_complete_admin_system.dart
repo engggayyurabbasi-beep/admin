@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'pos_module_kstore_ready.dart';
 import 'shipping_label_4x6_real.dart';
 import 'add_category_page.dart';
@@ -218,6 +219,10 @@ class _KStoreAdminSystemState extends State<KStoreAdminSystem> {
   late final KStoreAdminData data;
   int selected = 0;
 
+/// Admin section navigation history.
+/// Android Back एक-एक करके पिछली section पर जाएगा.
+final List<int> _sectionHistory = [0];
+
   final modules = const [
     'Dashboard',
     'Products',
@@ -298,14 +303,21 @@ class _KStoreAdminSystemState extends State<KStoreAdminSystem> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFC),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleAdminBack();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF9FAFC),
       appBar: _buildAppBar(),
       drawer: _buildDrawer(),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 220),
         child: _buildSelectedModule(),
       ),
+    );
     );
   }
 
@@ -438,7 +450,29 @@ class _KStoreAdminSystemState extends State<KStoreAdminSystem> {
     );
   }
 
-  void _select(int index) => setState(() => selected = index);
+  void _select(int index) {
+  if (selected == index) return;
+
+  setState(() {
+    _sectionHistory.add(index);
+    selected = index;
+  });
+}
+
+Future<void> _handleAdminBack() async {
+  // पहले Admin section history में पीछे जाएँ.
+  if (_sectionHistory.length > 1) {
+    setState(() {
+      _sectionHistory.removeLast();
+      selected = _sectionHistory.last;
+    });
+    return;
+  }
+
+  // Home section पर पहुँच चुके हैं.
+  // अब Android app को बंद किया जा सकता है.
+  await SystemNavigator.pop();
+}
 
   Widget _buildSelectedModule() {
     switch (selected) {
