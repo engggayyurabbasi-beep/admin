@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'add_category_page.dart';
-import 'manual_order_page.dart';
 
 /// K - Store Admin Panel
 /// Final colorful modular admin UI.
