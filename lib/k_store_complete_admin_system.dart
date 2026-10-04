@@ -16891,7 +16891,30 @@ class _CredentialDialogState extends State<_CredentialDialog> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         OutlinedButton(
-          onPressed: () => _testIntegration(ApiIntegration(idController.text.trim(), nameController.text.trim(), type, descriptionController.text.trim(), enabled)),
+          onPressed: () {
+              final endpoint = endpointController.text.trim();
+              final key = keyController.text.trim();
+              final secret = secretController.text.trim();
+              final ok = enabled && endpoint.isNotEmpty && key.isNotEmpty && secret.isNotEmpty;
+
+              showDialog<void>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('Connection Test'),
+                  content: Text(
+                    ok
+                        ? 'Configuration check passed. Endpoint and credentials are configured.'
+                        : 'Configuration check failed. Enable the integration and enter Endpoint, API Key / Client ID and Secret / Password.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                ),
+              );
+            },
           child: const Text('Test'),
         ),
         ElevatedButton(
