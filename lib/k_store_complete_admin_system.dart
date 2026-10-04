@@ -2294,8 +2294,8 @@ class _OrdersModuleState extends State<OrdersModule> {
       result.sort((a, b) => a.amount.compareTo(b.amount));
     } else {
       result.sort(
-        (a, b) => KirzOrderNumber.parse(b.id)
-            .compareTo(KirzOrderNumber.parse(a.id)),
+        (a, b) => (KirzOrderNumber.parse(b.id) ?? 0)
+            .compareTo((KirzOrderNumber.parse(a.id) ?? 0)),
       );
     }
     return result;
