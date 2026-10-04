@@ -2542,12 +2542,6 @@ class _OrdersModuleState extends State<OrdersModule> {
                     ],
                   ),
                 ),
-                if (narrow) const SizedBox(height: 12),
-                FilledButton.icon(
-                  onPressed: _manualOrder,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Create Order'),
-                ),
               ],
             );
           },
