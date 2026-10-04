@@ -483,7 +483,7 @@ class DashboardModule extends StatelessWidget {
               return GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: 20,
+                itemCount: 21,
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: count,
                   crossAxisSpacing: 10,
@@ -495,7 +495,7 @@ class DashboardModule extends StatelessWidget {
                   subtitle: _homeSubtitle(index),
                   icon: _homeIcon(index),
                   color: _homeColor(index),
-                  onTap: () => onOpen(index + 1),
+                  onTap: () => onOpen(index),
                 ),
               );
             },
