@@ -1085,7 +1085,7 @@ class _ProductsModuleState extends State<ProductsModule> {
         title: Text('Update Stock • ${p.name}'),
         content: TextField(
           controller: controller,
-          keyboardType: TextInputType.number,
+          keyboard: TextInputType.number,
           decoration: const InputDecoration(
             labelText: 'Quantity to add',
             hintText: 'Use a negative number to reduce stock',
@@ -1917,7 +1917,7 @@ class _ProductEditorState extends State<_ProductEditor> {
           Expanded(
             child: TextField(
               controller: min,
-              keyboardType: TextInputType.number,
+              keyboard: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Min Qty'),
               onChanged: (v) => slab.minQty = int.tryParse(v) ?? slab.minQty,
             ),
@@ -1926,7 +1926,7 @@ class _ProductEditorState extends State<_ProductEditor> {
           Expanded(
             child: TextField(
               controller: max,
-              keyboardType: TextInputType.number,
+              keyboard: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Max Qty'),
               onChanged: (v) => slab.maxQty = int.tryParse(v) ?? slab.maxQty,
             ),
@@ -6891,7 +6891,7 @@ class _PaymentsModuleState extends State<PaymentsModule>
               ),
               TextField(
                 controller: amount,
-                keyboardType: TextInputType.number,
+                keyboard: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'Refund Amount'),
               ),
               TextField(
@@ -7743,7 +7743,7 @@ class _DeliveryShippingModuleState extends State<DeliveryShippingModule> {
             title: Text(title),
             content: TextField(
               controller: controller,
-              keyboardType: TextInputType.number,
+              keyboard: TextInputType.number,
               decoration: const InputDecoration(
                 prefixText: '₹ ',
                 border: OutlineInputBorder(),
@@ -8453,7 +8453,7 @@ class _DeliveryShippingModuleState extends State<DeliveryShippingModule> {
             children: [
               TextField(
                 controller: subtotal,
-                keyboardType: TextInputType.number,
+                keyboard: TextInputType.number,
                 decoration: const InputDecoration(
                   labelText: 'Order subtotal',
                   prefixText: '₹ ',
@@ -8462,7 +8462,7 @@ class _DeliveryShippingModuleState extends State<DeliveryShippingModule> {
               const SizedBox(height: 10),
               TextField(
                 controller: pin,
-                keyboardType: TextInputType.number,
+                keyboard: TextInputType.number,
                 decoration: const InputDecoration(
                   labelText: 'PIN Code',
                 ),
@@ -9397,6 +9397,13 @@ class _CustomOrdersModuleState extends State<CustomOrdersModule> {
   }
 
 
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _dialog({CustomOrderAdmin? item}) async {
     final id = TextEditingController(
       text: item?.id ?? 'CO${DateTime.now().millisecondsSinceEpoch}',
@@ -9581,7 +9588,7 @@ class _CustomOrdersModuleState extends State<CustomOrdersModule> {
                             width: 90,
                             child: TextField(
                               controller: qty,
-                              keyboardType: TextInputType.number,
+                              keyboard: TextInputType.number,
                               decoration: const InputDecoration(
                                 labelText: 'Qty',
                                 border: OutlineInputBorder(),
@@ -9696,7 +9703,7 @@ class _CustomOrdersModuleState extends State<CustomOrdersModule> {
                           child: _Field(
                             discount,
                             'Discount',
-                            keyboardType: TextInputType.number,
+                            keyboard: TextInputType.number,
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -9704,7 +9711,7 @@ class _CustomOrdersModuleState extends State<CustomOrdersModule> {
                           child: _Field(
                             shipping,
                             'Shipping',
-                            keyboardType: TextInputType.number,
+                            keyboard: TextInputType.number,
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -9712,7 +9719,7 @@ class _CustomOrdersModuleState extends State<CustomOrdersModule> {
                           child: _Field(
                             tax,
                             'Tax',
-                            keyboardType: TextInputType.number,
+                            keyboard: TextInputType.number,
                           ),
                         ),
                       ],
