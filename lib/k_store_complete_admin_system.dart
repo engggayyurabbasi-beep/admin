@@ -600,6 +600,7 @@ class DashboardModule extends StatelessWidget {
         'API & Integrations',
         'Staff & Roles',
         'Settings',
+          'POS & Billing',
       ][i];
 
   String _homeSubtitle(int i) => const [
@@ -623,6 +624,7 @@ class DashboardModule extends StatelessWidget {
         'Third Party Services',
         'Manage Staff & Roles',
         'General Settings',
+          'Fast Billing & Invoices',
       ][i];
 
   IconData _homeIcon(int i) => const [
@@ -646,6 +648,7 @@ class DashboardModule extends StatelessWidget {
         Icons.extension_rounded,
         Icons.manage_accounts_rounded,
         Icons.settings_rounded,
+          Icons.point_of_sale_rounded,
       ][i];
 
   Color _homeColor(int i) => const [
@@ -669,6 +672,7 @@ class DashboardModule extends StatelessWidget {
         Color(0xFF19B75A),
         Color(0xFF607080),
         Color(0xFF1976D2),
+          Color(0xFFFF6B00),
       ][i];
 }
 
