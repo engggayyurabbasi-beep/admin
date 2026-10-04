@@ -4368,6 +4368,290 @@ class _CustomerProfilePage extends StatelessWidget {
       );
 }
 
+class OffersCouponsModule extends StatefulWidget {
+  const OffersCouponsModule({super.key, required this.data});
+  final KStoreAdminData data;
+
+  @override
+  State<OffersCouponsModule> createState() => _OffersCouponsModuleState();
+}
+
+class _OffersCouponsModuleState extends State<OffersCouponsModule> {
+  @override
+  Widget build(BuildContext context) {
+    return _Page(
+      child: Column(
+        children: [
+          _ModuleHeader(
+            title: 'Offers & Coupons',
+            subtitle: 'Create, edit, pause, activate and delete coupons',
+            icon: Icons.local_offer_rounded,
+            actions: [
+              _PrimaryButton(label: 'Create Coupon', icon: Icons.add_rounded, onPressed: () => _dialog()),
+            ],
+          ),
+          _StatsStrip(items: [
+            ['Coupons', '${widget.data.coupons.length}', Icons.local_offer_rounded],
+            ['Active', '${widget.data.coupons.where((c) => c.enabled).length}', Icons.check_circle_rounded],
+          ]),
+          const SizedBox(height: 10),
+          ...widget.data.coupons.map(
+            (c) => _AdminListCard(
+              title: c.code,
+              subtitle: '${c.description} • ${c.value}',
+              icon: Icons.local_offer_rounded,
+              color: const Color(0xFFFF9F0A),
+              enabled: c.enabled,
+              onToggle: (v) => setState(() => c.enabled = v),
+              actions: [
+                _ActionChip(label: 'Edit', icon: Icons.edit_rounded, onTap: () => _dialog(item: c)),
+                _ActionChip(label: 'Delete', icon: Icons.delete_outline_rounded, danger: true, onTap: () => setState(() => widget.data.coupons.remove(c))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _dialog({CouponAdmin? item}) async {
+    final code = TextEditingController(text: item?.code ?? '');
+    final desc = TextEditingController(text: item?.description ?? '');
+    final value = TextEditingController(text: item?.value ?? '');
+    await showDialog(
+      context: context,
+      builder: (context) => _FormDialog(
+        title: item == null ? 'Create Coupon' : 'Edit Coupon',
+        children: [_Field(code, 'Coupon Code'), _Field(desc, 'Description'), _Field(value, 'Discount / Value')],
+        onSave: () {
+          setState(() {
+            if (item == null) {
+              widget.data.coupons.add(CouponAdmin(code.text.toUpperCase(), desc.text, value.text, true));
+            } else {
+              item.code = code.text.toUpperCase();
+              item.description = desc.text;
+              item.value = value.text;
+            }
+          });
+          Navigator.pop(context);
+        },
+      ),
+    );
+    code.dispose();
+    desc.dispose();
+    value.dispose();
+  }
+}
+
+// -----------------------------------------------------------------------------
+// PAYMENTS
+// -----------------------------------------------------------------------------
+
+class PaymentsModule extends StatefulWidget {
+  const PaymentsModule({super.key, required this.data});
+  final KStoreAdminData data;
+
+  @override
+  State<PaymentsModule> createState() => _PaymentsModuleState();
+}
+
+class _PaymentsModuleState extends State<PaymentsModule> {
+  final Map<String, bool> methods = {
+    'Razorpay': true,
+    'UPI': true,
+    'Cards': true,
+    'Net Banking': true,
+    'Cash on Delivery': true,
+    'Wallet': true,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final total = widget.data.orders.fold<double>(0, (sum, o) => sum + o.amount);
+    return _Page(
+      child: Column(
+        children: [
+          const _ModuleHeader(
+            title: 'Payments',
+            subtitle: 'Payment gateways, methods, status and controls',
+            icon: Icons.payments_rounded,
+          ),
+          _StatsStrip(items: [
+            ['Order Value', '₹${total.toStringAsFixed(0)}', Icons.currency_rupee_rounded],
+            ['Methods', '${methods.length}', Icons.payment_rounded],
+            ['Online', 'Enabled', Icons.check_circle_rounded],
+          ]),
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Payment Methods',
+            icon: Icons.credit_card_rounded,
+            child: Column(
+              children: methods.entries
+                  .map(
+                    (e) => SwitchListTile(
+                      title: Text(e.key),
+                      subtitle: Text(e.value ? 'Enabled' : 'Disabled'),
+                      value: e.value,
+                      onChanged: (v) => setState(() => methods[e.key] = v),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _ActionGrid(
+            actions: [
+              _ToolAction('Add Gateway', Icons.add_card_rounded, () => _keyDialog('Payment Gateway')),
+              _ToolAction('Test Payment', Icons.bolt_rounded, () => _showSnack(context, 'Payment test mode opened.')),
+              _ToolAction('Refund', Icons.currency_exchange_rounded, () => _showSnack(context, 'Refund workflow opened.')),
+              _ToolAction('Transactions', Icons.receipt_long_rounded, () => _showSnack(context, 'Transactions opened.')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _keyDialog(String title) => showDialog(
+        context: context,
+        builder: (context) => _CredentialDialog(title: title),
+      );
+}
+
+// -----------------------------------------------------------------------------
+// DELIVERY & SHIPPING
+// -----------------------------------------------------------------------------
+
+class DeliveryShippingModule extends StatefulWidget {
+  const DeliveryShippingModule({super.key, required this.data});
+  final KStoreAdminData data;
+
+  @override
+  State<DeliveryShippingModule> createState() => _DeliveryShippingModuleState();
+}
+
+class _DeliveryShippingModuleState extends State<DeliveryShippingModule> {
+  final Map<String, bool> settings = {
+    'Free delivery above ₹999': true,
+    'COD available': true,
+    'PIN code validation': true,
+    'Delivery charge by PIN': true,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return _Page(
+      child: Column(
+        children: [
+          _ModuleHeader(
+            title: 'Delivery & Shipping',
+            subtitle: 'Add couriers, configure charges, PIN codes and delivery rules',
+            icon: Icons.local_shipping_rounded,
+            actions: [
+              _PrimaryButton(label: 'Add Courier', icon: Icons.add_rounded, onPressed: () => _courierDialog()),
+            ],
+          ),
+          ...widget.data.shipping.map(
+            (s) => _AdminListCard(
+              title: s.name,
+              subtitle: '${s.type} • ${s.status}',
+              icon: Icons.local_shipping_rounded,
+              color: const Color(0xFFFFB20F),
+              enabled: s.enabled,
+              onToggle: (v) => setState(() => s.enabled = v),
+              actions: [
+                _ActionChip(label: 'Configure', icon: Icons.settings_rounded, onTap: () => _courierDialog(item: s)),
+                _ActionChip(label: 'Test', icon: Icons.bolt_rounded, onTap: () => _showSnack(context, '${s.name} connection test opened.')),
+                _ActionChip(label: 'Delete', icon: Icons.delete_outline_rounded, danger: true, onTap: () => setState(() => widget.data.shipping.remove(s))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Delivery Rules',
+            icon: Icons.rule_rounded,
+            child: Column(
+              children: settings.entries
+                  .map(
+                    (e) => SwitchListTile(
+                      title: Text(e.key),
+                      value: e.value,
+                      onChanged: (v) => setState(() => settings[e.key] = v),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _ActionGrid(
+            actions: [
+              _ToolAction('PIN Codes', Icons.pin_drop_rounded, () => _pinDialog()),
+              _ToolAction('Charges', Icons.currency_rupee_rounded, () => _keyDialog('Delivery Charges')),
+              _ToolAction('Blocked PINs', Icons.block_rounded, () => _pinDialog(blocked: true)),
+              _ToolAction('Shipping Labels', Icons.print_rounded, () => _showSnack(context, 'Shipping labels opened.')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _courierDialog({ShippingAdmin? item}) async {
+    final name = TextEditingController(text: item?.name ?? '');
+    final type = TextEditingController(text: item?.type ?? 'API');
+    final id = TextEditingController(text: item?.id ?? 'S${DateTime.now().millisecondsSinceEpoch}');
+    await showDialog(
+      context: context,
+      builder: (context) => _FormDialog(
+        title: item == null ? 'Add Courier' : 'Configure Courier',
+        children: [_Field(id, 'Courier ID'), _Field(name, 'Courier Name'), _Field(type, 'Type')],
+        onSave: () {
+          setState(() {
+            if (item == null) {
+              widget.data.shipping.add(ShippingAdmin(id.text, name.text, type.text, 'Configured', true));
+            } else {
+              item.id = id.text;
+              item.name = name.text;
+              item.type = type.text;
+              item.status = 'Configured';
+            }
+          });
+          Navigator.pop(context);
+        },
+      ),
+    );
+    id.dispose();
+    name.dispose();
+    type.dispose();
+  }
+
+  Future<void> _pinDialog({bool blocked = false}) async {
+    final pin = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (context) => _FormDialog(
+        title: blocked ? 'Block PIN Code' : 'Add PIN Code',
+        children: [_Field(pin, 'PIN Code')],
+        onSave: () {
+          _showSnack(context, '${pin.text} ${blocked ? 'blocked' : 'added'} successfully.');
+          Navigator.pop(context);
+        },
+      ),
+    );
+    pin.dispose();
+  }
+
+  void _keyDialog(String title) => showDialog(
+        context: context,
+        builder: (context) => _CredentialDialog(title: title),
+      );
+}
+
+// -----------------------------------------------------------------------------
+// CUSTOM ORDERS
+// -----------------------------------------------------------------------------
+
+
 class CustomOrdersModule extends StatefulWidget {
   const CustomOrdersModule({super.key, required this.data});
   final KStoreAdminData data;
