@@ -123,8 +123,49 @@ class ShippingAdmin {
 }
 
 class CustomOrderAdmin {
-  CustomOrderAdmin(this.id, this.customer, this.request, this.status);
+  CustomOrderAdmin(
+    this.id,
+    this.customer,
+    this.request,
+    this.status, {
+    this.phone = '',
+    this.address = '',
+    this.city = '',
+    this.state = '',
+    this.pinCode = '',
+    this.paymentMethod = 'COD',
+    this.notes = '',
+    this.discount = 0,
+    this.shippingCharge = 0,
+    this.tax = 0,
+    this.items = const [],
+  });
+
   String id, customer, request, status;
+  String phone, address, city, state, pinCode;
+  String paymentMethod, notes;
+  double discount, shippingCharge, tax;
+  List<CustomOrderItem> items;
+
+  double get subtotal =>
+      items.fold<double>(0, (sum, item) => sum + item.total);
+
+  double get total =>
+      subtotal - discount + shippingCharge + tax;
+}
+
+class CustomOrderItem {
+  CustomOrderItem({
+    required this.product,
+    required this.quantity,
+    required this.unitPrice,
+  });
+
+  String product;
+  int quantity;
+  double unitPrice;
+
+  double get total => quantity * unitPrice;
 }
 
 class PartnerAdmin {
@@ -9355,32 +9396,488 @@ class _CustomOrdersModuleState extends State<CustomOrdersModule> {
     );
   }
 
+
   Future<void> _dialog({CustomOrderAdmin? item}) async {
-    final id = TextEditingController(text: item?.id ?? 'CO${DateTime.now().millisecondsSinceEpoch}');
-    final customer = TextEditingController(text: item?.customer ?? '');
+    final id = TextEditingController(
+      text: item?.id ?? 'CO${DateTime.now().millisecondsSinceEpoch}',
+    );
+    final phone = TextEditingController(text: item?.phone ?? '');
+    final address = TextEditingController(text: item?.address ?? '');
+    final city = TextEditingController(text: item?.city ?? '');
+    final state = TextEditingController(text: item?.state ?? '');
+    final pinCode = TextEditingController(text: item?.pinCode ?? '');
     final request = TextEditingController(text: item?.request ?? '');
+    final discount = TextEditingController(
+      text: item?.discount.toStringAsFixed(0) ?? '0',
+    );
+    final shipping = TextEditingController(
+      text: item?.shippingCharge.toStringAsFixed(0) ?? '0',
+    );
+    final tax = TextEditingController(
+      text: item?.tax.toStringAsFixed(0) ?? '0',
+    );
+    final notes = TextEditingController(text: item?.notes ?? '');
+    final qty = TextEditingController(text: '1');
+
+    String selectedCustomer = item?.customer ?? '';
+    String paymentMethod = item?.paymentMethod ?? 'COD';
+    String selectedProductId =
+        widget.data.products.isEmpty ? '' : widget.data.products.first.id;
+
+    final draftItems = <CustomOrderItem>[
+      ...?item?.items.map(
+        (entry) => CustomOrderItem(
+          product: entry.product,
+          quantity: entry.quantity,
+          unitPrice: entry.unitPrice,
+        ),
+      ),
+    ];
+
     await showDialog(
       context: context,
-      builder: (context) => _FormDialog(
-        title: item == null ? 'New Custom Order' : 'Edit Custom Order',
-        children: [_Field(id, 'Order ID'), _Field(customer, 'Customer'), _Field(request, 'Requirement', lines: 4)],
-        onSave: () {
-          setState(() {
-            if (item == null) {
-              widget.data.customOrders.add(CustomOrderAdmin(id.text, customer.text, request.text, 'New'));
-            } else {
-              item.id = id.text;
-              item.customer = customer.text;
-              item.request = request.text;
-            }
-          });
-          Navigator.pop(context);
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final productMatches = widget.data.products.where(
+            (product) => product.id == selectedProductId,
+          );
+          final subtotal = draftItems.fold<double>(
+            0,
+            (sum, entry) => sum + entry.total,
+          );
+          final discountValue = double.tryParse(discount.text) ?? 0;
+          final shippingValue = double.tryParse(shipping.text) ?? 0;
+          final taxValue = double.tryParse(tax.text) ?? 0;
+          final total =
+              subtotal - discountValue + shippingValue + taxValue;
+
+          return AlertDialog(
+            title: Row(
+              children: [
+                const Icon(Icons.assignment_rounded),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    item == null ? 'New Custom Order' : 'Edit Custom Order',
+                  ),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 700,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Order Information',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _Field(id, 'Order ID'),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: selectedCustomer.isEmpty
+                          ? null
+                          : selectedCustomer,
+                      decoration: const InputDecoration(
+                        labelText: 'Customer',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.person_outline_rounded),
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: 'Walk-in Customer',
+                          child: Text('Walk-in Customer'),
+                        ),
+                        ...widget.data.customers.map(
+                          (customer) => DropdownMenuItem(
+                            value: customer.name,
+                            child: Text(customer.name),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => selectedCustomer = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _Field(phone, 'Mobile Number'),
+                    const SizedBox(height: 10),
+                    _Field(
+                      request,
+                      'Requirement / Order Description',
+                      lines: 3,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Delivery Address',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _Field(address, 'Address', lines: 2),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(child: _Field(city, 'City')),
+                        const SizedBox(width: 10),
+                        Expanded(child: _Field(state, 'State')),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _Field(pinCode, 'PIN Code'),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Products / Items',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    if (widget.data.products.isNotEmpty)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: DropdownButtonFormField<String>(
+                              value: selectedProductId.isEmpty
+                                  ? null
+                                  : selectedProductId,
+                              decoration: const InputDecoration(
+                                labelText: 'Product',
+                                border: OutlineInputBorder(),
+                                prefixIcon:
+                                    Icon(Icons.inventory_2_outlined),
+                              ),
+                              items: widget.data.products.map(
+                                (product) => DropdownMenuItem(
+                                  value: product.id,
+                                  child: Text(
+                                    '${product.name} • ₹${product.price.toStringAsFixed(0)}',
+                                  ),
+                                ),
+                              ).toList(),
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setDialogState(
+                                    () => selectedProductId = value,
+                                  );
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          SizedBox(
+                            width: 90,
+                            child: TextField(
+                              controller: qty,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Qty',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          FilledButton.icon(
+                            onPressed: productMatches.isEmpty
+                                ? null
+                                : () {
+                                    final quantity =
+                                        int.tryParse(qty.text) ?? 1;
+                                    final safeQuantity =
+                                        quantity < 1 ? 1 : quantity;
+                                    final product = productMatches.first;
+
+                                    setDialogState(() {
+                                      draftItems.add(
+                                        CustomOrderItem(
+                                          product: product.name,
+                                          quantity: safeQuantity,
+                                          unitPrice: product.price,
+                                        ),
+                                      );
+                                      qty.text = '1';
+                                    });
+                                  },
+                            icon: const Icon(Icons.add_rounded),
+                            label: const Text('Add'),
+                          ),
+                        ],
+                      ),
+                    const SizedBox(height: 10),
+                    if (draftItems.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Text('No products added yet.'),
+                      )
+                    else
+                      ...draftItems.asMap().entries.map(
+                        (entry) => Card(
+                          child: ListTile(
+                            title: Text(entry.value.product),
+                            subtitle: Text(
+                              '${entry.value.quantity} × ₹${entry.value.unitPrice.toStringAsFixed(2)}',
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '₹${entry.value.total.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: () {
+                                    setDialogState(
+                                      () => draftItems.removeAt(entry.key),
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Payment & Charges',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: paymentMethod,
+                      decoration: const InputDecoration(
+                        labelText: 'Payment Method',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.payments_outlined),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'COD',
+                          child: Text('Cash on Delivery'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Prepaid',
+                          child: Text('Prepaid'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Partial',
+                          child: Text('Partial Payment'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => paymentMethod = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _Field(
+                            discount,
+                            'Discount',
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _Field(
+                            shipping,
+                            'Shipping',
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _Field(
+                            tax,
+                            'Tax',
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                      ),
+                      child: Column(
+                        children: [
+                          _customOrderSummaryRow('Subtotal', subtotal),
+                          _customOrderSummaryRow(
+                            'Discount',
+                            -discountValue,
+                          ),
+                          _customOrderSummaryRow(
+                            'Shipping',
+                            shippingValue,
+                          ),
+                          _customOrderSummaryRow('Tax', taxValue),
+                          const Divider(),
+                          _customOrderSummaryRow(
+                            'Grand Total',
+                            total,
+                            bold: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _Field(notes, 'Internal Notes', lines: 3),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              FilledButton.icon(
+                onPressed: () {
+                  if (selectedCustomer.trim().isEmpty) {
+                    _snack('Please select a customer.');
+                    return;
+                  }
+                  if (draftItems.isEmpty &&
+                      request.text.trim().isEmpty) {
+                    _snack('Add a product or enter the requirement.');
+                    return;
+                  }
+
+                  final savedItems = draftItems
+                      .map(
+                        (entry) => CustomOrderItem(
+                          product: entry.product,
+                          quantity: entry.quantity,
+                          unitPrice: entry.unitPrice,
+                        ),
+                      )
+                      .toList();
+
+                  setState(() {
+                    if (item == null) {
+                      widget.data.customOrders.add(
+                        CustomOrderAdmin(
+                          id.text.trim(),
+                          selectedCustomer.trim(),
+                          request.text.trim(),
+                          'New',
+                          phone: phone.text.trim(),
+                          address: address.text.trim(),
+                          city: city.text.trim(),
+                          state: state.text.trim(),
+                          pinCode: pinCode.text.trim(),
+                          paymentMethod: paymentMethod,
+                          notes: notes.text.trim(),
+                          discount: discountValue,
+                          shippingCharge: shippingValue,
+                          tax: taxValue,
+                          items: savedItems,
+                        ),
+                      );
+                    } else {
+                      item.id = id.text.trim();
+                      item.customer = selectedCustomer.trim();
+                      item.request = request.text.trim();
+                      item.phone = phone.text.trim();
+                      item.address = address.text.trim();
+                      item.city = city.text.trim();
+                      item.state = state.text.trim();
+                      item.pinCode = pinCode.text.trim();
+                      item.paymentMethod = paymentMethod;
+                      item.notes = notes.text.trim();
+                      item.discount = discountValue;
+                      item.shippingCharge = shippingValue;
+                      item.tax = taxValue;
+                      item.items = savedItems;
+                    }
+                  });
+
+                  Navigator.pop(dialogContext);
+                  _snack(
+                    item == null
+                        ? 'Custom order created successfully.'
+                        : 'Custom order updated successfully.',
+                  );
+                },
+                icon: const Icon(Icons.save_rounded),
+                label: Text(
+                  item == null ? 'Create Order' : 'Save Changes',
+                ),
+              ),
+            ],
+          );
         },
       ),
     );
+
     id.dispose();
-    customer.dispose();
+    phone.dispose();
+    address.dispose();
+    city.dispose();
+    state.dispose();
+    pinCode.dispose();
     request.dispose();
+    discount.dispose();
+    shipping.dispose();
+    tax.dispose();
+    notes.dispose();
+    qty.dispose();
+  }
+
+  Widget _customOrderSummaryRow(
+    String label,
+    double amount, {
+    bool bold = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+              ),
+            ),
+          ),
+          Text(
+            '₹${amount.toStringAsFixed(2)}',
+            style: TextStyle(
+              fontWeight: bold ? FontWeight.w900 : FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _status(CustomOrderAdmin item) async {
