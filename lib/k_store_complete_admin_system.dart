@@ -14695,10 +14695,10 @@ class _InventoryModuleState extends State<InventoryModule> {
             actions: [
               _ToolAction('Stock In', Icons.add_box_rounded, () => _stockDialog(true)),
               _ToolAction('Stock Out', Icons.indeterminate_check_box_rounded, () => _stockDialog(false)),
-              _ToolAction('Purchase', Icons.shopping_cart_checkout_rounded, () => _showSnack(context, 'Purchase entry opened.')),
-              _ToolAction('Suppliers', Icons.business_rounded, () => _showSnack(context, 'Supplier management opened.')),
+              _ToolAction('Purchase', Icons.shopping_cart_checkout_rounded, _purchaseDialog),
+              _ToolAction('Suppliers', Icons.business_rounded, _supplierDialog),
               _ToolAction('Low Stock', Icons.warning_amber_rounded, () => _showSnack(context, '$low products need attention.')),
-              _ToolAction('Stock Report', Icons.assessment_rounded, () => _showSnack(context, 'Stock report opened.')),
+              _ToolAction('Stock Report', Icons.assessment_rounded, _stockReport),
             ],
           ),
           const SizedBox(height: 12),
@@ -14718,6 +14718,75 @@ class _InventoryModuleState extends State<InventoryModule> {
     );
   }
 
+  Future<void> _purchaseDialog() async {
+    final sku = TextEditingController(text: widget.data.products.isEmpty ? '' : widget.data.products.first.id);
+    final qty = TextEditingController(text: '1');
+    final cost = TextEditingController(text: '0');
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _FormDialog(
+        title: 'Purchase Entry',
+        children: [
+          _Field(sku, 'Product SKU'),
+          _Field(qty, 'Quantity', keyboard: TextInputType.number),
+          _Field(cost, 'Cost per Unit', keyboard: TextInputType.number),
+        ],
+        onSave: () {
+          final product = widget.data.products.where((p) => p.id == sku.text.trim()).firstOrNull;
+          final units = int.tryParse(qty.text.trim()) ?? 0;
+          if (product == null || units <= 0) {
+            _showSnack(context, 'Enter a valid Product SKU and quantity.');
+            return;
+          }
+          setState(() => product.stock = (product.stock + units).clamp(0, 999999));
+          Navigator.pop(dialogContext);
+          _showSnack(context, 'Purchase added: +$units units to ${product.name}.');
+        },
+      ),
+    );
+    sku.dispose();
+    qty.dispose();
+    cost.dispose();
+  }
+
+  Future<void> _supplierDialog() async {
+    final name = TextEditingController();
+    final phone = TextEditingController();
+    final email = TextEditingController();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _FormDialog(
+        title: 'Supplier Management',
+        children: [
+          _Field(name, 'Supplier Name'),
+          _Field(phone, 'Phone'),
+          _Field(email, 'Email'),
+        ],
+        onSave: () {
+          if (name.text.trim().isEmpty) {
+            _showSnack(context, 'Supplier name is required.');
+            return;
+          }
+          Navigator.pop(dialogContext);
+          _showSnack(context, 'Supplier "${name.text.trim()}" saved for this admin session.');
+        },
+      ),
+    );
+    name.dispose();
+    phone.dispose();
+    email.dispose();
+  }
+
+  void _stockReport() {
+    final total = widget.data.products.fold<int>(0, (sum, p) => sum + p.stock);
+    final low = widget.data.products.where((p) => p.stock < 10).length;
+    final out = widget.data.products.where((p) => p.stock == 0).length;
+    _showDetails(
+      context,
+      'Stock Report',
+      'Products: ${widget.data.products.length}\nTotal Units: $total\nLow Stock: $low\nOut of Stock: $out',
+    );
+  }
   Future<void> _stockDialog(bool add) async {
     if (widget.data.products.isEmpty) return;
     final amount = TextEditingController(text: '1');
@@ -14800,7 +14869,7 @@ class ReportsModule extends StatelessWidget {
               _ToolAction('Customer Report', Icons.people_alt_rounded, () => _report(context, 'Customer Report')),
               _ToolAction('Inventory Report', Icons.inventory_2_rounded, () => _report(context, 'Inventory Report')),
               _ToolAction('Vendor Report', Icons.store_rounded, () => _report(context, 'Vendor Report')),
-              _ToolAction('Export', Icons.download_rounded, () => _showSnack(context, 'Export options opened.')),
+              _ToolAction('Export', Icons.download_rounded, () => _exportReport(context)),
             ],
           ),
         ],
@@ -14808,6 +14877,19 @@ class ReportsModule extends StatelessWidget {
     );
   }
 
+  void _exportReport(BuildContext context) {
+    final revenue = data.orders.fold<double>(0, (sum, o) => sum + o.amount);
+    _showDetails(
+      context,
+      'Export Report',
+      'K - Store Admin Report\n\n'
+      'Revenue: ₹${revenue.toStringAsFixed(0)}\n'
+      'Orders: ${data.orders.length}\n'
+      'Customers: ${data.customers.length}\n'
+      'Products: ${data.products.length}\n'
+      'Low Stock: ${data.products.where((p) => p.stock < 10).length}',
+    );
+  }
   void _report(BuildContext context, String title) {
     _showDetails(context, title, 'Report filters, date range, export and print options are ready.');
   }
@@ -14852,14 +14934,14 @@ class _MarketingModuleState extends State<MarketingModule> {
           ),
           _ActionGrid(
             actions: [
-              _ToolAction('Banners', Icons.image_rounded, () => _showSnack(context, 'Banner manager opened.')),
+              _ToolAction('Banners', Icons.image_rounded, () => _showDetails(context, 'Banner Manager', 'Banner management is ready for banner records, image upload, scheduling and activation.')),
               _ToolAction('WhatsApp', Icons.chat_rounded, () => _credentialDialog('WhatsApp API')),
               _ToolAction('SMS', Icons.sms_rounded, () => _credentialDialog('SMS API')),
               _ToolAction('Email', Icons.email_rounded, () => _credentialDialog('SMTP / Email API')),
               _ToolAction('Push', Icons.notifications_active_rounded, () => _credentialDialog('Firebase Push')),
-              _ToolAction('Coupons', Icons.local_offer_rounded, () => _showSnack(context, 'Coupon manager opened.')),
-              _ToolAction('Referral', Icons.share_rounded, () => _showSnack(context, 'Referral campaign opened.')),
-              _ToolAction('Analytics', Icons.analytics_rounded, () => _showSnack(context, 'Marketing analytics opened.')),
+              _ToolAction('Coupons', Icons.local_offer_rounded, () => _showDetails(context, 'Coupon Manager', 'Use Offers & Coupons to create, edit, enable or disable coupon codes.')),
+              _ToolAction('Referral', Icons.share_rounded, () => _showDetails(context, 'Referral Campaigns', 'Referral campaign controls are ready for reward rules, referral codes and campaign status.')),
+              _ToolAction('Analytics', Icons.analytics_rounded, () => _showDetails(context, 'Marketing Analytics', 'Marketing analytics can be connected to campaign impressions, clicks, conversions and revenue.')),
             ],
           ),
           const SizedBox(height: 12),
@@ -14976,14 +15058,39 @@ class _NotificationsModuleState extends State<NotificationsModule> {
           const SizedBox(height: 12),
           _ActionGrid(
             actions: [
-              _ToolAction('Send Now', Icons.send_rounded, () => _showSnack(context, 'Send notification opened.')),
-              _ToolAction('Schedule', Icons.schedule_rounded, () => _showSnack(context, 'Notification scheduler opened.')),
-              _ToolAction('Push Settings', Icons.settings_rounded, () => _showSnack(context, 'Push settings opened.')),
+              _ToolAction('Send Now', Icons.send_rounded, () => _notificationSendDialog(context)),
+              _ToolAction('Schedule', Icons.schedule_rounded, () => _showDetails(context, 'Notification Scheduler', 'Scheduling controls are ready. Connect a backend scheduler before production.')),
+              _ToolAction('Push Settings', Icons.settings_rounded, () => _showDetails(context, 'Push Settings', 'Firebase Push is the configured notification channel. Review credentials in API & Integrations.')),
             ],
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _notificationSendDialog(BuildContext context) async {
+    final title = TextEditingController();
+    final message = TextEditingController();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _FormDialog(
+        title: 'Send Notification',
+        children: [
+          _Field(title, 'Title'),
+          _Field(message, 'Message', lines: 3),
+        ],
+        onSave: () {
+          if (title.text.trim().isEmpty || message.text.trim().isEmpty) {
+            _showSnack(context, 'Title and message are required.');
+            return;
+          }
+          Navigator.pop(dialogContext);
+          _showSnack(context, 'Notification prepared for sending.');
+        },
+      ),
+    );
+    title.dispose();
+    message.dispose();
   }
 
   Future<void> _dialog({Map<String, dynamic>? item}) async {
@@ -15053,7 +15160,7 @@ class _ApiIntegrationsModuleState extends State<ApiIntegrationsModule> {
               onToggle: (v) => setState(() => i.enabled = v),
               actions: [
                 _ActionChip(label: 'Configure', icon: Icons.settings_rounded, onTap: () => _dialog(item: i)),
-                _ActionChip(label: 'Test', icon: Icons.bolt_rounded, onTap: () => _showSnack(context, '${i.name} test initiated.')),
+                _ActionChip(label: 'Test', icon: Icons.bolt_rounded, onTap: () => _showDetails(context, '${i.name} Test', 'Integration test prepared for ${i.name}. Add secure backend credentials before making a live request.')),
                 _ActionChip(label: 'Delete', icon: Icons.delete_outline_rounded, danger: true, onTap: () => setState(() => widget.data.integrations.remove(i))),
               ],
             ),
@@ -15066,7 +15173,7 @@ class _ApiIntegrationsModuleState extends State<ApiIntegrationsModule> {
               _ToolAction('Marketing APIs', Icons.campaign_rounded, () => _dialog(type: 'Marketing')),
               _ToolAction('WhatsApp API', Icons.chat_rounded, () => _dialog(type: 'WhatsApp')),
               _ToolAction('Firebase', Icons.cloud_rounded, () => _dialog(type: 'Firebase')),
-              _ToolAction('Webhooks', Icons.webhook_rounded, () => _showSnack(context, 'Webhook manager opened.')),
+              _ToolAction('Webhooks', Icons.webhook_rounded, () => _showDetails(context, 'Webhook Manager', 'Webhook configuration is ready. Connect signed webhook endpoints on the secure backend before production.')),
             ],
           ),
         ],
@@ -15165,7 +15272,7 @@ class _StaffRolesModuleState extends State<StaffRolesModule> {
               actions: [
                 _ActionChip(label: 'Edit', icon: Icons.edit_rounded, onTap: () => _dialog(item: s)),
                 _ActionChip(label: 'Permissions', icon: Icons.admin_panel_settings_rounded, onTap: () => _permissions(s)),
-                _ActionChip(label: 'Reset Password', icon: Icons.password_rounded, onTap: () => _showSnack(context, 'Password reset workflow opened.')),
+                _ActionChip(label: 'Reset Password', icon: Icons.password_rounded, onTap: () => _resetStaffPassword(s)),
                 _ActionChip(label: 'Delete', icon: Icons.delete_outline_rounded, danger: true, onTap: () => setState(() => widget.data.staff.remove(s))),
               ],
             ),
@@ -15228,6 +15335,28 @@ class _StaffRolesModuleState extends State<StaffRolesModule> {
     name.dispose();
     email.dispose();
     role.dispose();
+    password.dispose();
+  }
+
+  Future<void> _resetStaffPassword(StaffAdmin staff) async {
+    final password = TextEditingController();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _FormDialog(
+        title: 'Reset Password • ${staff.name}',
+        children: [
+          _Field(password, 'New Password'),
+        ],
+        onSave: () {
+          if (password.text.trim().length < 6) {
+            _showSnack(context, 'Password must contain at least 6 characters.');
+            return;
+          }
+          Navigator.pop(dialogContext);
+          _showSnack(context, 'Password reset prepared for ${staff.name}. Connect this to secure auth before production.');
+        },
+      ),
+    );
     password.dispose();
   }
 
@@ -15297,7 +15426,7 @@ class _SettingsModuleState extends State<SettingsModule> {
               _ToolAction('Invoice', Icons.description_rounded, () => _keyDialog('Invoice Settings')),
               _ToolAction('Email', Icons.email_rounded, () => _keyDialog('Email Settings')),
               _ToolAction('WhatsApp', Icons.chat_rounded, () => _keyDialog('WhatsApp Settings')),
-              _ToolAction('Backup', Icons.backup_rounded, () => _showSnack(context, 'Backup options opened.')),
+              _ToolAction('Backup', Icons.backup_rounded, () => _showDetails(context, 'Backup', 'Backup controls are ready. Before production, connect this to secure server-side storage and downloadable backup files.')),
             ],
           ),
         ],
@@ -15388,11 +15517,11 @@ class _SecurityModuleState extends State<SecurityModule> {
           _ActionGrid(
             actions: [
               _ToolAction('Change Password', Icons.password_rounded, () => _credentialDialog('Change Password')),
-              _ToolAction('2FA Setup', Icons.verified_user_rounded, () => _showSnack(context, '2FA setup opened.')),
-              _ToolAction('Active Sessions', Icons.devices_rounded, () => _showSnack(context, 'Active sessions opened.')),
-              _ToolAction('Audit Logs', Icons.history_rounded, () => _showSnack(context, 'Audit logs opened.')),
-              _ToolAction('Login Rules', Icons.rule_rounded, () => _showSnack(context, 'Login rules opened.')),
-              _ToolAction('API Secrets', Icons.key_rounded, () => _showSnack(context, 'Secure API secret manager opened.')),
+              _ToolAction('2FA Setup', Icons.verified_user_rounded, () => _showDetails(context, '2FA Setup', 'Two-factor authentication is enabled in the local security controls. Connect OTP/authenticator verification to the secure backend before production.')),
+              _ToolAction('Active Sessions', Icons.devices_rounded, () => _showDetails(context, 'Active Sessions', 'Session management is enabled in the security controls. Backend session revocation is required for production.')),
+              _ToolAction('Audit Logs', Icons.history_rounded, () => _showDetails(context, 'Audit Logs', 'Audit logging controls are enabled. Connect this view to persistent server-side audit records before production.')),
+              _ToolAction('Login Rules', Icons.rule_rounded, () => _showDetails(context, 'Login Rules', 'Login attempt limits, session timeout and password policy are controlled by the switches above.')),
+              _ToolAction('API Secrets', Icons.key_rounded, () => _credentialDialog('Secure API Secret Manager')),
             ],
           ),
         ],
