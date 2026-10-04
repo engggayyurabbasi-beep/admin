@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'add_category_page.dart';
 
 /// K - Store Admin Panel
 /// Final colorful modular admin UI.
@@ -494,7 +495,7 @@ class DashboardModule extends StatelessWidget {
                   subtitle: _homeSubtitle(index),
                   icon: _homeIcon(index),
                   color: _homeColor(index),
-                  onTap: () => onOpen(index),
+                  onTap: () => onOpen(index + 1),
                 ),
               );
             },
@@ -2032,7 +2033,7 @@ class _CategoriesModuleState extends State<CategoriesModule> {
             subtitle: 'Create, edit, delete, pause and activate categories',
             icon: Icons.category_rounded,
             actions: [
-              _PrimaryButton(label: 'Add Category', icon: Icons.add_rounded, onPressed: () => _dialog()),
+              _PrimaryButton(label: 'Add Category', icon: Icons.add_rounded, onPressed: () => _openAddCategory()),
             ],
           ),
           ...widget.data.categories.map(
@@ -2050,6 +2051,41 @@ class _CategoriesModuleState extends State<CategoriesModule> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _openAddCategory() async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AddCategoryPage(),
+      ),
+    );
+
+    if (!mounted || result == null) return;
+
+    final name = (result['name'] ?? '').toString().trim();
+    final description = (result['description'] ?? '').toString().trim();
+    final id = (result['id'] ?? '').toString().trim();
+
+    if (name.isEmpty || id.isEmpty) return;
+
+    setState(() {
+      widget.data.categories.add(
+        CategoryAdmin(
+          id,
+          name,
+          description,
+          result['status'] == 'Active',
+        ),
+      );
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$name category added successfully'),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
