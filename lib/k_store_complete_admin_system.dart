@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'pos_module_kstore_ready.dart';
 import 'shipping_label_4x6_real.dart';
@@ -601,10 +602,13 @@ class DashboardModule extends StatelessWidget {
 
               if (confirm != true || !context.mounted) return;
 
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(
-                  builder: (_) => AdminLoginPage(),
-                ),
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove('admin_session_expiry');
+
+              if (!context.mounted) return;
+
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                '/',
                 (route) => false,
               );
             },
