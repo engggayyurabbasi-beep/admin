@@ -9950,12 +9950,43 @@ class _VendorsModuleState extends State<VendorsModule> {
   String _selectedTab = 'Overview';
 
   final Map<String, _VendorDetails> _details = {};
+  final Map<String, Set<String>> _vendorProducts = {};
+  final Map<String, Set<String>> _vendorOrders = {};
+  final Map<String, List<WalletTransaction>> _vendorTransactions = {};
 
   @override
   void initState() {
     super.initState();
+
     for (final vendor in widget.data.vendors) {
-      _details.putIfAbsent(vendor.id, () => _VendorDetails.seed(vendor));
+      _details.putIfAbsent(
+        vendor.id,
+        () => _VendorDetails.seed(vendor),
+      );
+      _vendorProducts.putIfAbsent(
+        vendor.id,
+        () => <String>{},
+      );
+      _vendorOrders.putIfAbsent(
+        vendor.id,
+        () => <String>{},
+      );
+      _vendorTransactions.putIfAbsent(
+        vendor.id,
+        () => <WalletTransaction>[],
+      );
+    }
+
+    if (widget.data.vendors.isNotEmpty) {
+      final firstVendor = widget.data.vendors.first;
+
+      _vendorProducts[firstVendor.id]!.addAll(
+        widget.data.products.map((product) => product.id),
+      );
+
+      _vendorOrders[firstVendor.id]!.addAll(
+        widget.data.orders.map((order) => order.id),
+      );
     }
   }
 
@@ -10087,50 +10118,43 @@ class _VendorsModuleState extends State<VendorsModule> {
         'Products',
         'Vendor catalog',
         Icons.inventory_2_rounded,
-        () => _showInfo('Vendor Products',
-            'Approve listings, prices, stock, SKU and product status.'),
+        () => _showVendorProducts(),
       ),
       _VendorQuickAction(
         'Orders',
         'Fulfilment',
         Icons.shopping_bag_rounded,
-        () => _showInfo('Vendor Orders',
-            'Review vendor-wise orders, packing, shipping, delivery and returns.'),
+        () => _showVendorOrders(),
       ),
       _VendorQuickAction(
         'Commission',
         'Rates & slabs',
         Icons.percent_rounded,
-        () => _showInfo('Vendor Commission',
-            'Set vendor commission percentage, slabs and settlement rules.'),
+        () => _showVendorCommission(),
       ),
       _VendorQuickAction(
         'Payouts',
         'Payments',
         Icons.payments_rounded,
-        () => _showInfo('Vendor Payouts',
-            'Review payable balance, payout requests and payment history.'),
+        () => _showVendorPayouts(),
       ),
       _VendorQuickAction(
         'KYC & Documents',
         'Verification',
         Icons.folder_shared_rounded,
-        () => _showInfo('KYC & Documents',
-            'Verify PAN, GST, bank account and required vendor documents.'),
+        () => _showVendorDocuments(),
       ),
       _VendorQuickAction(
         'Wallet',
         'Balance & ledger',
         Icons.account_balance_wallet_rounded,
-        () => _showInfo('Vendor Wallet',
-            'Track available balance, pending balance, credits, debits and withdrawals.'),
+        () => _showVendorWalletManager(),
       ),
       _VendorQuickAction(
         'Reports',
         'Performance',
         Icons.analytics_rounded,
-        () => _showInfo('Vendor Reports',
-            'Sales, orders, products, commission, payouts and vendor performance.'),
+        () => _showVendorReports(),
       ),
     ];
 
@@ -10701,7 +10725,7 @@ class _VendorsModuleState extends State<VendorsModule> {
           FilledButton.icon(
             onPressed: () {
               Navigator.pop(dialogContext);
-              _message('Payout workflow opened');
+              _showVendorPayouts(preselectedVendorId: vendor.id);
             },
             icon: const Icon(Icons.payments_rounded),
             label: const Text('Create Payout'),
@@ -10767,6 +10791,825 @@ class _VendorsModuleState extends State<VendorsModule> {
       ),
     );
   }
+
+
+  void _showVendorProducts() {
+    final vendors = widget.data.vendors;
+    if (vendors.isEmpty) {
+      _message('Add a vendor first');
+      return;
+    }
+
+    String selectedId = vendors.first.id;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final ids = _vendorProducts.putIfAbsent(
+              selectedId,
+              () => <String>{},
+            );
+
+            final products = widget.data.products
+                .where((product) => ids.contains(product.id))
+                .toList();
+
+            return AlertDialog(
+              title: const Text('Vendor Products'),
+              content: SizedBox(
+                width: 600,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: selectedId,
+                      decoration: const InputDecoration(
+                        labelText: 'Vendor',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: vendors.map((vendor) {
+                        return DropdownMenuItem<String>(
+                          value: vendor.id,
+                          child: Text('${vendor.name} • ${vendor.id}'),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => selectedId = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    if (products.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Text('No products assigned.'),
+                      )
+                    else
+                      ...products.map(
+                        (product) => ListTile(
+                          leading: const Icon(Icons.inventory_2_outlined),
+                          title: Text(product.name),
+                          subtitle: Text(
+                            '${product.category} • ₹${product.price.toStringAsFixed(0)} • Stock ${product.stock}',
+                          ),
+                          trailing: Switch(
+                            value: product.enabled,
+                            onChanged: (value) {
+                              setState(() => product.enabled = value);
+                              setDialogState(() {});
+                            },
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showVendorOrders() {
+    final vendors = widget.data.vendors;
+    if (vendors.isEmpty) {
+      _message('Add a vendor first');
+      return;
+    }
+
+    String selectedId = vendors.first.id;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final ids = _vendorOrders.putIfAbsent(
+              selectedId,
+              () => <String>{},
+            );
+
+            final orders = widget.data.orders
+                .where((order) => ids.contains(order.id))
+                .toList();
+
+            return AlertDialog(
+              title: const Text('Vendor Orders'),
+              content: SizedBox(
+                width: 650,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: selectedId,
+                      decoration: const InputDecoration(
+                        labelText: 'Vendor',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: vendors.map((vendor) {
+                        return DropdownMenuItem<String>(
+                          value: vendor.id,
+                          child: Text('${vendor.name} • ${vendor.id}'),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => selectedId = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    if (orders.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Text('No orders assigned.'),
+                      )
+                    else
+                      ...orders.map(
+                        (order) => ListTile(
+                          leading: const Icon(Icons.shopping_bag_outlined),
+                          title: Text('${order.id} • ${order.customer}'),
+                          subtitle: Text(
+                            '₹${order.amount.toStringAsFixed(0)} • ${order.payment}',
+                          ),
+                          trailing: DropdownButton<String>(
+                            value: order.status,
+                            items: const [
+                              'Processing',
+                              'Shipped',
+                              'Delivered',
+                              'Cancelled',
+                            ].map(
+                              (status) => DropdownMenuItem<String>(
+                                value: status,
+                                child: Text(status),
+                              ),
+                            ).toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() => order.status = value);
+                                setDialogState(() {});
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+
+
+  void _showVendorCommission() {
+    final vendors = widget.data.vendors;
+    if (vendors.isEmpty) {
+      _message('Add a vendor first');
+      return;
+    }
+
+    String selectedId = vendors.first.id;
+    final controller = TextEditingController(
+      text: _details[selectedId]?.commission.toString() ?? '0',
+    );
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final detail = _details.putIfAbsent(
+              selectedId,
+              () => _VendorDetails.seed(vendors.first),
+            );
+
+            return AlertDialog(
+              title: const Text('Vendor Commission'),
+              content: SizedBox(
+                width: 480,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: selectedId,
+                      decoration: const InputDecoration(
+                        labelText: 'Vendor',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: vendors.map((vendor) {
+                        return DropdownMenuItem<String>(
+                          value: vendor.id,
+                          child: Text('${vendor.name} • ${vendor.id}'),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        selectedId = value;
+                        final newDetail = _details.putIfAbsent(
+                          value,
+                          () => _VendorDetails.seed(
+                            vendors.firstWhere((v) => v.id == value),
+                          ),
+                        );
+                        controller.text =
+                            newDetail.commission.toString();
+                        setDialogState(() {});
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: controller,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Commission %',
+                        suffixText: '%',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Current commission: ${detail.commission.toStringAsFixed(1)}%',
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final value = double.tryParse(
+                      controller.text.trim(),
+                    );
+
+                    if (value == null || value < 0 || value > 100) {
+                      _message('Enter commission between 0 and 100%');
+                      return;
+                    }
+
+                    setState(() {
+                      final current = _details.putIfAbsent(
+                        selectedId,
+                        () => _VendorDetails.seed(
+                          vendors.firstWhere((v) => v.id == selectedId),
+                        ),
+                      );
+                      current.commission = value;
+                    });
+
+                    Navigator.pop(dialogContext);
+                    _message('Commission updated');
+                  },
+                  child: const Text('Save Commission'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    controller.addListener(() {});
+  }
+
+  void _showVendorPayouts({String? preselectedVendorId}) {
+    final vendors = widget.data.vendors;
+    if (vendors.isEmpty) {
+      _message('Add a vendor first');
+      return;
+    }
+
+    String selectedId =
+        preselectedVendorId != null &&
+                vendors.any((v) => v.id == preselectedVendorId)
+            ? preselectedVendorId
+            : vendors.first.id;
+
+    final amountController = TextEditingController();
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final vendor = vendors.firstWhere((v) => v.id == selectedId);
+            final detail = _details.putIfAbsent(
+              selectedId,
+              () => _VendorDetails.seed(vendor),
+            );
+
+            final transactions = _vendorTransactions.putIfAbsent(
+              selectedId,
+              () => <WalletTransaction>[],
+            );
+
+            return AlertDialog(
+              title: Text('Vendor Payout • ${vendor.name}'),
+              content: SizedBox(
+                width: 520,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: selectedId,
+                      decoration: const InputDecoration(
+                        labelText: 'Vendor',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: vendors.map((item) {
+                        return DropdownMenuItem<String>(
+                          value: item.id,
+                          child: Text('${item.name} • ${item.id}'),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setDialogState(() => selectedId = value);
+                        amountController.clear();
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _walletTile(
+                      'Available Balance',
+                      detail.wallet,
+                      Icons.account_balance_wallet_rounded,
+                    ),
+                    _walletTile(
+                      'Pending Settlement',
+                      detail.pendingWallet,
+                      Icons.pending_actions_rounded,
+                    ),
+                    TextField(
+                      controller: amountController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Payout Amount',
+                        prefixText: '₹',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    if (transactions.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        'Transactions: ${transactions.length}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Close'),
+                ),
+                FilledButton.icon(
+                  onPressed: () {
+                    final amount = double.tryParse(
+                      amountController.text.trim(),
+                    );
+
+                    if (amount == null || amount <= 0) {
+                      _message('Enter a valid payout amount');
+                      return;
+                    }
+
+                    if (amount > detail.wallet) {
+                      _message('Payout exceeds available balance');
+                      return;
+                    }
+
+                    setState(() {
+                      detail.wallet -= amount;
+                      detail.pendingWallet += amount;
+
+                      transactions.add(
+                        WalletTransaction(
+                          'VP-${DateTime.now().millisecondsSinceEpoch}',
+                          'Vendor payout',
+                          amount,
+                          'Debit',
+                        ),
+                      );
+                    });
+
+                    Navigator.pop(dialogContext);
+                    _message('Payout created successfully');
+                  },
+                  icon: const Icon(Icons.payments_rounded),
+                  label: const Text('Create Payout'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    amountController.addListener(() {});
+  }
+
+
+
+  void _showVendorDocuments() {
+    final vendors = widget.data.vendors;
+
+    if (vendors.isEmpty) {
+      _message('Add a vendor first');
+      return;
+    }
+
+    String selectedId = vendors.first.id;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final vendor =
+                vendors.firstWhere((v) => v.id == selectedId);
+
+            final detail = _details.putIfAbsent(
+              selectedId,
+              () => _VendorDetails.seed(vendor),
+            );
+
+            return AlertDialog(
+              title: Text('KYC & Documents • ${vendor.name}'),
+              content: SizedBox(
+                width: 560,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        value: selectedId,
+                        decoration: const InputDecoration(
+                          labelText: 'Vendor',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: vendors.map((item) {
+                          return DropdownMenuItem<String>(
+                            value: item.id,
+                            child: Text(
+                              '${item.name} • ${item.id}',
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setDialogState(() => selectedId = value);
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      ListTile(
+                        leading: const Icon(Icons.badge_outlined),
+                        title: const Text('PAN'),
+                        subtitle: Text(
+                          detail.pan.isEmpty
+                              ? 'Not submitted'
+                              : detail.pan,
+                        ),
+                      ),
+                      ListTile(
+                        leading: const Icon(
+                          Icons.receipt_long_outlined,
+                        ),
+                        title: const Text('GSTIN'),
+                        subtitle: Text(
+                          detail.gst.isEmpty
+                              ? 'Not submitted'
+                              : detail.gst,
+                        ),
+                      ),
+                      ListTile(
+                        leading: const Icon(
+                          Icons.account_balance_outlined,
+                        ),
+                        title: const Text('Bank Account'),
+                        subtitle: Text(
+                          detail.bank.isEmpty
+                              ? 'Not submitted'
+                              : detail.bank,
+                        ),
+                      ),
+                      ListTile(
+                        leading: const Icon(
+                          Icons.verified_user_outlined,
+                        ),
+                        title: const Text('KYC Status'),
+                        subtitle: Text(detail.kyc),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      detail.kyc = 'Rejected';
+                    });
+                    Navigator.pop(dialogContext);
+                    _message('Vendor KYC rejected');
+                  },
+                  child: const Text('Reject'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    setState(() {
+                      detail.kyc = 'Verified';
+                      vendor.status = 'Approved';
+                    });
+                    Navigator.pop(dialogContext);
+                    _message('Vendor KYC approved');
+                  },
+                  child: const Text('Approve KYC'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showVendorWalletManager() {
+    final vendors = widget.data.vendors;
+
+    if (vendors.isEmpty) {
+      _message('Add a vendor first');
+      return;
+    }
+
+    String selectedId = vendors.first.id;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final vendor =
+                vendors.firstWhere((v) => v.id == selectedId);
+
+            final detail = _details.putIfAbsent(
+              selectedId,
+              () => _VendorDetails.seed(vendor),
+            );
+
+            final transactions = _vendorTransactions.putIfAbsent(
+              selectedId,
+              () => <WalletTransaction>[],
+            );
+
+            return AlertDialog(
+              title: Text('Vendor Wallet • ${vendor.name}'),
+              content: SizedBox(
+                width: 560,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        value: selectedId,
+                        decoration: const InputDecoration(
+                          labelText: 'Vendor',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: vendors.map((item) {
+                          return DropdownMenuItem<String>(
+                            value: item.id,
+                            child: Text(
+                              '${item.name} • ${item.id}',
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setDialogState(() => selectedId = value);
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _walletTile(
+                        'Available Balance',
+                        detail.wallet,
+                        Icons.account_balance_wallet_rounded,
+                      ),
+                      _walletTile(
+                        'Pending Settlement',
+                        detail.pendingWallet,
+                        Icons.pending_actions_rounded,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Transactions: ${transactions.length}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (transactions.isNotEmpty)
+                        ...transactions.reversed.take(5).map(
+                          (transaction) => ListTile(
+                            dense: true,
+                            leading: Icon(
+                              transaction.type == 'Credit'
+                                  ? Icons.arrow_downward_rounded
+                                  : Icons.arrow_upward_rounded,
+                            ),
+                            title: Text(transaction.note),
+                            subtitle: Text(transaction.type),
+                            trailing: Text(
+                              '₹${transaction.amount.toStringAsFixed(0)}',
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Close'),
+                ),
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                    _showVendorPayouts(
+                      preselectedVendorId: selectedId,
+                    );
+                  },
+                  icon: const Icon(Icons.payments_rounded),
+                  label: const Text('Create Payout'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showVendorReports() {
+    final vendors = widget.data.vendors;
+
+    if (vendors.isEmpty) {
+      _message('Add a vendor first');
+      return;
+    }
+
+    String selectedId = vendors.first.id;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final vendor =
+                vendors.firstWhere((v) => v.id == selectedId);
+
+            final detail = _details.putIfAbsent(
+              selectedId,
+              () => _VendorDetails.seed(vendor),
+            );
+
+            final productIds = _vendorProducts.putIfAbsent(
+              selectedId,
+              () => <String>{},
+            );
+
+            final orderIds = _vendorOrders.putIfAbsent(
+              selectedId,
+              () => <String>{},
+            );
+
+            final transactions = _vendorTransactions.putIfAbsent(
+              selectedId,
+              () => <WalletTransaction>[],
+            );
+
+            final products = widget.data.products
+                .where((p) => productIds.contains(p.id))
+                .toList();
+
+            final orders = widget.data.orders
+                .where((o) => orderIds.contains(o.id))
+                .toList();
+
+            final sales = orders.fold<double>(
+              0,
+              (sum, order) => sum + order.amount,
+            );
+
+            final commissionAmount =
+                sales * detail.commission / 100;
+
+            return AlertDialog(
+              title: Text('Vendor Reports • ${vendor.name}'),
+              content: SizedBox(
+                width: 620,
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      DropdownButtonFormField<String>(
+                        value: selectedId,
+                        decoration: const InputDecoration(
+                          labelText: 'Vendor',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: vendors.map((item) {
+                          return DropdownMenuItem<String>(
+                            value: item.id,
+                            child: Text(
+                              '${item.name} • ${item.id}',
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setDialogState(() => selectedId = value);
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      _detailRow(
+                        'Products',
+                        '${products.length}',
+                      ),
+                      _detailRow(
+                        'Orders',
+                        '${orders.length}',
+                      ),
+                      _detailRow(
+                        'Sales',
+                        '₹${sales.toStringAsFixed(0)}',
+                      ),
+                      _detailRow(
+                        'Commission',
+                        '${detail.commission.toStringAsFixed(1)}%',
+                      ),
+                      _detailRow(
+                        'Commission Amount',
+                        '₹${commissionAmount.toStringAsFixed(0)}',
+                      ),
+                      _detailRow(
+                        'Available Wallet',
+                        '₹${detail.wallet.toStringAsFixed(0)}',
+                      ),
+                      _detailRow(
+                        'Pending Settlement',
+                        '₹${detail.pendingWallet.toStringAsFixed(0)}',
+                      ),
+                      _detailRow(
+                        'Transactions',
+                        '${transactions.length}',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
 
   void _showInfo(String title, String description) {
     showDialog<void>(
