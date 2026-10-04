@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'add_category_page.dart';
+import 'manual_order_page.dart';
 
 /// K - Store Admin Panel
 /// Final colorful modular admin UI.
@@ -2291,85 +2292,27 @@ class _OrdersModuleState extends State<OrdersModule> {
     );
   }
 
-  void _createManualOrder() {
-    final name = TextEditingController();
-    final amount = TextEditingController();
+  Future<void> _createManualOrder() async {
+    final result = await Navigator.push<ManualOrderResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ManualOrderPage(
+          products: widget.data.products,
+          customers: widget.data.customers,
+          nextOrderNumber: _nextOrderNumber,
+        ),
+      ),
+    );
 
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Create Manual Order'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'New Order Number: ${_nextOrderNumber()}',
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: name,
-                decoration: const InputDecoration(
-                  labelText: 'Customer Name',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: amount,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Order Amount',
-                  prefixText: '₹ ',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final customer = name.text.trim();
-                final orderAmount = double.tryParse(amount.text.trim());
+    if (!mounted || result == null) {
+      return;
+    }
 
-                if (customer.isEmpty || orderAmount == null) {
-                  _showMessage('Please enter customer name and valid amount.');
-                  return;
-                }
-
-                final orderNumber = _nextOrderNumber();
-
-                setState(() {
-                  widget.data.orders.add(
-                    OrderAdmin(
-                      orderNumber,
-                      customer,
-                      orderAmount,
-                      'Pending',
-                      'Pending',
-                    ),
-                  );
-                });
-
-                Navigator.pop(dialogContext);
-                _showMessage('$orderNumber created successfully.');
-              },
-              child: const Text('Create Order'),
-            ),
-          ],
-        );
-      },
-    ).then((_) {
-      name.dispose();
-      amount.dispose();
+    setState(() {
+      widget.data.orders.add(result.order);
     });
+
+    _showMessage('${result.order.id} created successfully.');
   }
 
   void _updateStatus(OrderAdmin order) {
