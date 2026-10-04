@@ -15183,137 +15183,7 @@ class _MarketingModuleState extends State<MarketingModule> {
     controller.dispose();
   }
 
-  void _securityTest() {
-    final enabled = security.values.where((v) => v).length;
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Security Test'),
-        content: Text('$enabled of ${security.length} security controls are enabled.'),
-        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close'))],
-      ),
-    );
-  }
-
-  void _twoFactorSetup() {
-    final enabled = security['Two-factor authentication'] ?? false;
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('2FA Setup'),
-        content: Text(enabled
-            ? '2FA control is enabled. Connect OTP/authenticator verification to your secure authentication backend for real sign-in protection.'
-            : '2FA is disabled. Turn on the Two-factor authentication switch first.'),
-        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close'))],
-      ),
-    );
-  }
-
-  void _activeSessions() {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Active Sessions'),
-        content: SizedBox(
-          width: 560,
-          child: ListView(
-            shrinkWrap: true,
-            children: _AdminFunctionalState.activeSessions.map((s) => ListTile(
-              leading: const Icon(Icons.devices_rounded),
-              title: Text(s),
-              trailing: TextButton(
-                onPressed: () {
-                  setState(() => _AdminFunctionalState.activeSessions.remove(s));
-                  Navigator.pop(dialogContext);
-                  _showSnack(context, 'Session revoked.');
-                },
-                child: const Text('Revoke'),
-              ),
-            )).toList(),
-          ),
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close'))],
-      ),
-    );
-  }
-
-  void _auditLogs() {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Audit Logs'),
-        content: SizedBox(
-          width: 650,
-          child: _AdminFunctionalState.auditLogs.isEmpty
-              ? const Text('No audit records yet.')
-              : ListView(
-                  shrinkWrap: true,
-                  children: _AdminFunctionalState.auditLogs.reversed.map((log) => ListTile(
-                    leading: const Icon(Icons.history_rounded),
-                    title: Text(log),
-                  )).toList(),
-                ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
-          if (_AdminFunctionalState.auditLogs.isNotEmpty)
-            FilledButton(
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: _AdminFunctionalState.auditLogs.join('\n')));
-                _showSnack(context, 'Audit logs copied.');
-              },
-              child: const Text('Copy'),
-            ),
-        ],
-      ),
-    );
-  }
-
-  void _loginRules() {
-    final attempt = TextEditingController(text: '5');
-    final timeout = TextEditingController(text: '30');
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => _FormDialog(
-        title: 'Login Rules',
-        children: [_Field(attempt, 'Maximum Login Attempts'), _Field(timeout, 'Session Timeout (minutes)')],
-        onSave: () {
-          setState(() {
-            security['Login attempt limit'] = (int.tryParse(attempt.text) ?? 0) > 0;
-            security['Session timeout'] = (int.tryParse(timeout.text) ?? 0) > 0;
-            _AdminFunctionalState.auditLogs.add('${DateTime.now()} • Login rules updated');
-          });
-          Navigator.pop(dialogContext);
-          _showSnack(context, 'Login rules saved.');
-        },
-      ),
-    );
-    attempt.dispose();
-    timeout.dispose();
-  }
-
-  void _apiSecrets() {
-    final key = TextEditingController();
-    final secret = TextEditingController();
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => _FormDialog(
-        title: 'Secure API Secret Manager',
-        children: [_Field(key, 'API Key'), _Field(secret, 'API Secret', obscure: true)],
-        onSave: () {
-          if (key.text.trim().isEmpty || secret.text.trim().isEmpty) return;
-          setState(() {
-            security['API secret protection'] = true;
-            _AdminFunctionalState.auditLogs.add('${DateTime.now()} • API secret configuration updated');
-          });
-          Navigator.pop(dialogContext);
-          _showSnack(context, 'API secret configuration saved locally.');
-        },
-      ),
-    );
-  }
-
-  Future<void> _marketingCouponDialog() async {
+Future<void> _marketingCouponDialog() async {
     final code = TextEditingController();
     final description = TextEditingController();
     final value = TextEditingController();
@@ -16142,6 +16012,217 @@ class _SecurityModuleState extends State<SecurityModule> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+
+  void _securityTest() {
+    final enabled = security.values.where((v) => v).length;
+    final total = security.length;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Security Test'),
+        content: Text(
+          'Security check completed.\n\n'
+          'Enabled controls: $enabled / $total\n'
+          'Audit logging: ${security['Audit log'] == true ? 'Enabled' : 'Disabled'}\n'
+          '2FA: ${security['Two-factor authentication'] == true ? 'Enabled' : 'Disabled'}\n'
+          'Session management: ${security['Device/session management'] == true ? 'Enabled' : 'Disabled'}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _twoFactorSetup() {
+    setState(() {
+      security['Two-factor authentication'] =
+          !(security['Two-factor authentication'] ?? false);
+    });
+
+    final enabled = security['Two-factor authentication'] ?? false;
+    _AdminFunctionalState.auditLogs.add(
+      '${DateTime.now()} • 2FA ${enabled ? 'enabled' : 'disabled'}',
+    );
+
+    _showSnack(
+      context,
+      enabled ? 'Two-factor authentication enabled.' : 'Two-factor authentication disabled.',
+    );
+  }
+
+  void _activeSessions() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, refresh) => AlertDialog(
+          title: const Text('Active Sessions'),
+          content: SizedBox(
+            width: 420,
+            child: _AdminFunctionalState.activeSessions.isEmpty
+                ? const Text('No active sessions.')
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: _AdminFunctionalState.activeSessions
+                        .map(
+                          (session) => ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.devices_rounded),
+                            title: Text(session),
+                            trailing: TextButton(
+                              onPressed: () {
+                                _AdminFunctionalState.activeSessions.remove(session);
+                                refresh(() {});
+                              },
+                              child: const Text('Revoke'),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _auditLogs() {
+    final logs = _AdminFunctionalState.auditLogs.reversed.toList();
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Audit Logs'),
+        content: SizedBox(
+          width: 480,
+          height: 320,
+          child: logs.isEmpty
+              ? const Center(child: Text('No audit records yet.'))
+              : ListView.builder(
+                  itemCount: logs.length,
+                  itemBuilder: (context, index) => ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.history_rounded),
+                    title: Text(logs[index]),
+                  ),
+                ),
+        ),
+        actions: [
+          if (logs.isNotEmpty)
+            TextButton(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: logs.join('\n')));
+                _showSnack(context, 'Audit logs copied.');
+              },
+              child: const Text('Copy'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _loginRules() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, refresh) => AlertDialog(
+          title: const Text('Login Rules'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SwitchListTile(
+                title: const Text('Login attempt limit'),
+                value: security['Login attempt limit'] ?? false,
+                onChanged: (value) {
+                  setState(() => security['Login attempt limit'] = value);
+                  refresh(() {});
+                },
+              ),
+              SwitchListTile(
+                title: const Text('Session timeout'),
+                value: security['Session timeout'] ?? false,
+                onChanged: (value) {
+                  setState(() => security['Session timeout'] = value);
+                  refresh(() {});
+                },
+              ),
+              SwitchListTile(
+                title: const Text('Password policy'),
+                value: security['Password policy'] ?? false,
+                onChanged: (value) {
+                  setState(() => security['Password policy'] = value);
+                  refresh(() {});
+                },
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                _AdminFunctionalState.auditLogs.add(
+                  '${DateTime.now()} • Login rules updated',
+                );
+                Navigator.pop(dialogContext);
+                _showSnack(context, 'Login rules updated.');
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _apiSecrets() {
+    final nameController = TextEditingController();
+    final secretController = TextEditingController();
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _FormDialog(
+        title: 'API Secrets',
+        children: [
+          _Field(nameController, 'Secret Name'),
+          _Field(secretController, 'Secret / Token', obscure: true),
+          const Text(
+            'Demo local control only. Real secrets must be stored in a secure backend.',
+            style: TextStyle(fontSize: 11, color: Color(0xFF687180)),
+          ),
+        ],
+        onSave: () {
+          if (nameController.text.trim().isEmpty ||
+              secretController.text.trim().isEmpty) {
+            _showSnack(context, 'Enter secret name and secret value.');
+            return;
+          }
+
+          _AdminFunctionalState.auditLogs.add(
+            '${DateTime.now()} • API secret configured: ${nameController.text.trim()}',
+          );
+
+          Navigator.pop(dialogContext);
+          _showSnack(context, 'API secret configuration saved locally.');
+          nameController.dispose();
+          secretController.dispose();
+        },
       ),
     );
   }
