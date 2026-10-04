@@ -494,7 +494,7 @@ class DashboardModule extends StatelessWidget {
                   subtitle: _homeSubtitle(index),
                   icon: _homeIcon(index),
                   color: _homeColor(index),
-                  onTap: () => onOpen(index + 1),
+                  onTap: () => onOpen(index),
                 ),
               );
             },
