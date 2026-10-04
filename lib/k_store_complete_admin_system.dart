@@ -3664,6 +3664,7 @@ class _FinalOrderDetailsPageState extends State<FinalOrderDetailsPage> {
   }
 }
 
+
 class CustomersModule extends StatefulWidget {
   const CustomersModule({super.key, required this.data});
   final KStoreAdminData data;
@@ -3672,358 +3673,700 @@ class CustomersModule extends StatefulWidget {
   State<CustomersModule> createState() => _CustomersModuleState();
 }
 
+class _CustomerExtra {
+  String mobile = '';
+  String alternateMobile = '';
+  String dob = '';
+  String gender = 'Not specified';
+  String address = '';
+  String city = '';
+  String state = '';
+  String pincode = '';
+  String landmark = '';
+  String type = 'Regular';
+  String notes = '';
+  double wallet = 0;
+  int points = 0;
+}
+
 class _CustomersModuleState extends State<CustomersModule> {
+  final _search = TextEditingController();
+  final Map<String, _CustomerExtra> _extra = {};
+  String _status = 'All';
+  String _type = 'All';
+  String _sort = 'Newest';
+
+  _CustomerExtra extra(CustomerAdmin c) =>
+      _extra.putIfAbsent(c.id, _CustomerExtra.new);
+
+  List<CustomerAdmin> get customers {
+    final q = _search.text.trim().toLowerCase();
+    final list = widget.data.customers.where((c) {
+      final x = extra(c);
+      final match = q.isEmpty ||
+          c.id.toLowerCase().contains(q) ||
+          c.name.toLowerCase().contains(q) ||
+          c.email.toLowerCase().contains(q) ||
+          x.mobile.toLowerCase().contains(q);
+      final status = _status == 'All' ||
+          (_status == 'Active' && c.enabled) ||
+          (_status == 'Blocked' && !c.enabled);
+      final type = _type == 'All' || x.type == _type;
+      return match && status && type;
+    }).toList();
+
+    if (_sort == 'Name A-Z') {
+      list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    } else if (_sort == 'Orders') {
+      list.sort((a, b) => _orders(b).compareTo(_orders(a)));
+    } else if (_sort == 'Spending') {
+      list.sort((a, b) => _spend(b).compareTo(_spend(a)));
+    }
+    return list;
+  }
+
+  int _orders(CustomerAdmin c) =>
+      widget.data.orders.where((o) => o.customer == c.name).length;
+
+  double _spend(CustomerAdmin c) => widget.data.orders
+      .where((o) => o.customer == c.name)
+      .fold<double>(0, (s, o) => s + o.amount);
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final active = widget.data.customers.where((c) => c.enabled).length;
+    final blocked = widget.data.customers.length - active;
+    final sales = widget.data.orders.fold<double>(0, (s, o) => s + o.amount);
+
     return _Page(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _ModuleHeader(
             title: 'Customers',
-            subtitle: 'Customer accounts, block/unblock and account controls',
+            subtitle:
+                'Profiles, orders, addresses, wallet, rewards and account controls',
             icon: Icons.people_alt_rounded,
             actions: [
               _PrimaryButton(
                 label: 'Add Customer',
-                icon: Icons.person_add_rounded,
-                onPressed: () => _dialog(),
+                icon: Icons.person_add_alt_1_rounded,
+                onPressed: () => _form(),
               ),
             ],
           ),
-          ...widget.data.customers.map(
-            (c) => _AdminListCard(
-              title: '${c.name} • ${c.id}',
-              subtitle: c.email,
-              icon: Icons.person_rounded,
-              color: const Color(0xFF2589E8),
-              enabled: c.enabled,
-              onToggle: (v) => setState(() => c.enabled = v),
-              actions: [
-                _ActionChip(label: 'Edit', icon: Icons.edit_rounded, onTap: () => _dialog(item: c)),
-                _ActionChip(label: c.enabled ? 'Block' : 'Activate', icon: Icons.lock_outline_rounded, onTap: () => setState(() => c.enabled = !c.enabled)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _dialog({CustomerAdmin? item}) async {
-    final id = TextEditingController(text: item?.id ?? 'U${DateTime.now().millisecondsSinceEpoch}');
-    final name = TextEditingController(text: item?.name ?? '');
-    final email = TextEditingController(text: item?.email ?? '');
-    await showDialog(
-      context: context,
-      builder: (context) => _FormDialog(
-        title: item == null ? 'Add Customer' : 'Edit Customer',
-        children: [_Field(id, 'Customer ID'), _Field(name, 'Name'), _Field(email, 'Email')],
-        onSave: () {
-          setState(() {
-            if (item == null) {
-              widget.data.customers.add(CustomerAdmin(id.text, name.text, email.text, true));
-            } else {
-              item.id = id.text;
-              item.name = name.text;
-              item.email = email.text;
-            }
-          });
-          Navigator.pop(context);
-        },
-      ),
-    );
-    id.dispose();
-    name.dispose();
-    email.dispose();
-  }
-}
-
-// -----------------------------------------------------------------------------
-// OFFERS & COUPONS
-// -----------------------------------------------------------------------------
-
-class OffersCouponsModule extends StatefulWidget {
-  const OffersCouponsModule({super.key, required this.data});
-  final KStoreAdminData data;
-
-  @override
-  State<OffersCouponsModule> createState() => _OffersCouponsModuleState();
-}
-
-class _OffersCouponsModuleState extends State<OffersCouponsModule> {
-  @override
-  Widget build(BuildContext context) {
-    return _Page(
-      child: Column(
-        children: [
-          _ModuleHeader(
-            title: 'Offers & Coupons',
-            subtitle: 'Create, edit, pause, activate and delete coupons',
-            icon: Icons.local_offer_rounded,
-            actions: [
-              _PrimaryButton(label: 'Create Coupon', icon: Icons.add_rounded, onPressed: () => _dialog()),
-            ],
-          ),
+          const SizedBox(height: 12),
           _StatsStrip(items: [
-            ['Coupons', '${widget.data.coupons.length}', Icons.local_offer_rounded],
-            ['Active', '${widget.data.coupons.where((c) => c.enabled).length}', Icons.check_circle_rounded],
+            ['Customers', '${widget.data.customers.length}', Icons.people_alt_rounded],
+            ['Active', '$active', Icons.check_circle_rounded],
+            ['Blocked', '$blocked', Icons.block_rounded],
+            ['Orders', '${widget.data.orders.length}', Icons.shopping_bag_rounded],
+            ['Sales', '₹${sales.toStringAsFixed(0)}', Icons.currency_rupee_rounded],
           ]),
+          const SizedBox(height: 12),
+          _toolbar(),
           const SizedBox(height: 10),
-          ...widget.data.coupons.map(
-            (c) => _AdminListCard(
-              title: c.code,
-              subtitle: '${c.description} • ${c.value}',
-              icon: Icons.local_offer_rounded,
-              color: const Color(0xFFFF9F0A),
-              enabled: c.enabled,
-              onToggle: (v) => setState(() => c.enabled = v),
-              actions: [
-                _ActionChip(label: 'Edit', icon: Icons.edit_rounded, onTap: () => _dialog(item: c)),
-                _ActionChip(label: 'Delete', icon: Icons.delete_outline_rounded, danger: true, onTap: () => setState(() => widget.data.coupons.remove(c))),
-              ],
-            ),
-          ),
+          ...customers.map(_card),
+          if (customers.isEmpty) _empty(),
         ],
       ),
     );
   }
 
-  Future<void> _dialog({CouponAdmin? item}) async {
-    final code = TextEditingController(text: item?.code ?? '');
-    final desc = TextEditingController(text: item?.description ?? '');
-    final value = TextEditingController(text: item?.value ?? '');
-    await showDialog(
-      context: context,
-      builder: (context) => _FormDialog(
-        title: item == null ? 'Create Coupon' : 'Edit Coupon',
-        children: [_Field(code, 'Coupon Code'), _Field(desc, 'Description'), _Field(value, 'Discount / Value')],
-        onSave: () {
-          setState(() {
-            if (item == null) {
-              widget.data.coupons.add(CouponAdmin(code.text.toUpperCase(), desc.text, value.text, true));
-            } else {
-              item.code = code.text.toUpperCase();
-              item.description = desc.text;
-              item.value = value.text;
-            }
-          });
-          Navigator.pop(context);
-        },
+  Widget _toolbar() => _SectionCard(
+        title: 'Customer Directory',
+        icon: Icons.manage_search_rounded,
+        child: Column(
+          children: [
+            TextField(
+              controller: _search,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Search name, mobile, email or customer ID',
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: _search.text.isEmpty
+                    ? null
+                    : IconButton(
+                        onPressed: () {
+                          _search.clear();
+                          setState(() {});
+                        },
+                        icon: const Icon(Icons.clear_rounded),
+                      ),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ...['All', 'Active', 'Blocked'].map((v) => ChoiceChip(
+                      label: Text(v),
+                      selected: _status == v,
+                      onSelected: (_) => setState(() => _status = v),
+                    )),
+                _drop(_type, ['All', 'Regular', 'Wholesale', 'Reseller', 'VIP'],
+                    (v) => setState(() => _type = v!)),
+                _drop(_sort, ['Newest', 'Name A-Z', 'Orders', 'Spending'],
+                    (v) => setState(() => _sort = v!)),
+              ],
+            ),
+          ],
+        ),
+      );
+
+  Widget _drop(String value, List<String> items, ValueChanged<String?> onChanged) =>
+      SizedBox(
+        width: 155,
+        child: DropdownButtonFormField<String>(
+          value: value,
+          decoration: const InputDecoration(
+            labelText: 'Filter',
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+          items: items
+              .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+              .toList(),
+          onChanged: onChanged,
+        ),
+      );
+
+  Widget _card(CustomerAdmin c) {
+    final x = extra(c);
+    final count = _orders(c);
+    final spend = _spend(c);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.grey.shade200),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    child: Text(
+                      c.name.isEmpty ? '?' : c.name[0].toUpperCase(),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(c.name,
+                            style: const TextStyle(
+                                fontSize: 17, fontWeight: FontWeight.w800)),
+                        Text('${c.id} • ${x.type}'),
+                        Text(x.mobile.isEmpty ? c.email : '${x.mobile} • ${c.email}',
+                            maxLines: 2, overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: c.enabled,
+                    onChanged: (v) => setState(() => c.enabled = v),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: [
+                  _metric('Orders', '$count'),
+                  _metric('Spent', '₹${spend.toStringAsFixed(0)}'),
+                  _metric('Wallet', '₹${x.wallet.toStringAsFixed(0)}'),
+                  _metric('Points', '${x.points}'),
+                ],
+              ),
+              const Divider(height: 22),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: [
+                  _ActionChip(
+                    label: 'Profile',
+                    icon: Icons.person_outline_rounded,
+                    onTap: () => _profile(c),
+                  ),
+                  _ActionChip(
+                    label: 'Edit',
+                    icon: Icons.edit_rounded,
+                    onTap: () => _form(item: c),
+                  ),
+                  _ActionChip(
+                    label: 'Orders',
+                    icon: Icons.shopping_bag_outlined,
+                    onTap: () => _ordersDialog(c),
+                  ),
+                  _ActionChip(
+                    label: c.enabled ? 'Block' : 'Activate',
+                    icon: c.enabled
+                        ? Icons.lock_outline_rounded
+                        : Icons.lock_open_rounded,
+                    onTap: () => setState(() => c.enabled = !c.enabled),
+                  ),
+                  _ActionChip(
+                    label: 'Wallet',
+                    icon: Icons.account_balance_wallet_outlined,
+                    onTap: () => _wallet(c),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
-    code.dispose();
-    desc.dispose();
-    value.dispose();
+  }
+
+  Widget _metric(String title, String value) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F5FA),
+          borderRadius: BorderRadius.circular(11),
+        ),
+        child: Text('$title\n$value',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+      );
+
+  Widget _empty() => _SectionCard(
+        title: 'No customers found',
+        icon: Icons.person_search_rounded,
+        child: const Center(child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text('Try another search/filter or add a new customer.'),
+        )),
+      );
+
+  Future<void> _form({CustomerAdmin? item}) async {
+    final x = item == null ? _CustomerExtra() : extra(item);
+    final id = TextEditingController(
+        text: item?.id ?? 'U${DateTime.now().millisecondsSinceEpoch}');
+    final name = TextEditingController(text: item?.name ?? '');
+    final mobile = TextEditingController(text: x.mobile);
+    final alt = TextEditingController(text: x.alternateMobile);
+    final email = TextEditingController(text: item?.email ?? '');
+    final dob = TextEditingController(text: x.dob);
+    final address = TextEditingController(text: x.address);
+    final city = TextEditingController(text: x.city);
+    final state = TextEditingController(text: x.state);
+    final pin = TextEditingController(text: x.pincode);
+    final landmark = TextEditingController(text: x.landmark);
+    final notes = TextEditingController(text: x.notes);
+    String gender = x.gender;
+    String type = x.type;
+
+    await showDialog(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, setD) => AlertDialog(
+          title: Text(item == null ? 'Add Customer' : 'Edit Customer'),
+          content: SizedBox(
+            width: 650,
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  _section('Account Information', Icons.badge_outlined, [
+                    _field(id, 'Customer ID', readOnly: true),
+                    _field(name, 'Full Name *'),
+                    _field(mobile, 'Mobile Number *', keyboard: TextInputType.phone),
+                    _field(alt, 'Alternate Mobile', keyboard: TextInputType.phone),
+                    _field(email, 'Email', keyboard: TextInputType.emailAddress),
+                  ]),
+                  _section('Personal & Type', Icons.person_outline_rounded, [
+                    _field(dob, 'Date of Birth'),
+                    _select('Gender', gender,
+                        ['Not specified', 'Male', 'Female', 'Other'],
+                        (v) => setD(() => gender = v!)),
+                    _select('Customer Type', type,
+                        ['Regular', 'Wholesale', 'Reseller', 'VIP'],
+                        (v) => setD(() => type = v!)),
+                  ]),
+                  _section('Address', Icons.location_on_outlined, [
+                    _field(address, 'Address', lines: 2),
+                    _field(landmark, 'Landmark'),
+                    _field(city, 'City'),
+                    _field(state, 'State'),
+                    _field(pin, 'Pincode', keyboard: TextInputType.number),
+                  ]),
+                  _section('Internal Notes', Icons.notes_rounded, [
+                    _field(notes, 'Private notes', lines: 3),
+                  ]),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Cancel')),
+            FilledButton.icon(
+              icon: const Icon(Icons.save_rounded),
+              label: Text(item == null ? 'Create Customer' : 'Save Changes'),
+              onPressed: () {
+                if (name.text.trim().isEmpty || mobile.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Name and mobile are required.')));
+                  return;
+                }
+                setState(() {
+                  if (item == null) {
+                    final c = CustomerAdmin(
+                        id.text.trim(), name.text.trim(), email.text.trim(), true);
+                    widget.data.customers.add(c);
+                    final n = extra(c);
+                    n.mobile = mobile.text.trim();
+                    n.alternateMobile = alt.text.trim();
+                    n.dob = dob.text.trim();
+                    n.gender = gender;
+                    n.type = type;
+                    n.address = address.text.trim();
+                    n.city = city.text.trim();
+                    n.state = state.text.trim();
+                    n.pincode = pin.text.trim();
+                    n.landmark = landmark.text.trim();
+                    n.notes = notes.text.trim();
+                  } else {
+                    item.id = id.text.trim();
+                    item.name = name.text.trim();
+                    item.email = email.text.trim();
+                    x.mobile = mobile.text.trim();
+                    x.alternateMobile = alt.text.trim();
+                    x.dob = dob.text.trim();
+                    x.gender = gender;
+                    x.type = type;
+                    x.address = address.text.trim();
+                    x.city = city.text.trim();
+                    x.state = state.text.trim();
+                    x.pincode = pin.text.trim();
+                    x.landmark = landmark.text.trim();
+                    x.notes = notes.text.trim();
+                  }
+                });
+                Navigator.pop(dialog);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+
+    for (final c in [
+      id, name, mobile, alt, email, dob, address, city, state, pin, landmark, notes
+    ]) {
+      c.dispose();
+    }
+  }
+
+  Widget _section(String title, IconData icon, List<Widget> children) => Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [Icon(icon, size: 19), const SizedBox(width: 7),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w800))]),
+            const SizedBox(height: 9),
+            ...children,
+          ],
+        ),
+      );
+
+  Widget _field(TextEditingController c, String label,
+      {bool readOnly = false, TextInputType? keyboard, int lines = 1}) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: TextField(
+          controller: c,
+          readOnly: readOnly,
+          keyboardType: keyboard,
+          maxLines: lines,
+          decoration: InputDecoration(
+              labelText: label, border: const OutlineInputBorder()),
+        ),
+      );
+
+  Widget _select(String label, String value, List<String> items,
+          ValueChanged<String?> onChanged) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: DropdownButtonFormField<String>(
+          value: value,
+          decoration: InputDecoration(
+              labelText: label, border: const OutlineInputBorder()),
+          items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+          onChanged: onChanged,
+        ),
+      );
+
+  void _profile(CustomerAdmin c) {
+    final x = extra(c);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _CustomerProfilePage(
+          customer: c,
+          extra: x,
+          orders: widget.data.orders.where((o) => o.customer == c.name).toList(),
+          spend: _spend(c),
+        ),
+      ),
+    ).then((_) => mounted ? setState(() {}) : null);
+  }
+
+  void _ordersDialog(CustomerAdmin c) {
+    final orders = widget.data.orders.where((o) => o.customer == c.name).toList();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * .72,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${c.name} — Orders',
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 10),
+              Expanded(
+                child: orders.isEmpty
+                    ? const Center(child: Text('No orders found.'))
+                    : ListView.separated(
+                        itemCount: orders.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 7),
+                        itemBuilder: (_, i) {
+                          final o = orders[i];
+                          return ListTile(
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(13),
+                                side: BorderSide(color: Colors.grey.shade300)),
+                            leading: const Icon(Icons.receipt_long_rounded),
+                            title: Text(o.id),
+                            subtitle: Text('${o.status} • ${o.payment}'),
+                            trailing: Text('₹${o.amount.toStringAsFixed(0)}',
+                                style: const TextStyle(fontWeight: FontWeight.w800)),
+                          );
+                        },
+                      ),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _wallet(CustomerAdmin c) {
+    final x = extra(c);
+    final amount = TextEditingController();
+    String action = 'Add';
+    showDialog(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, setD) => AlertDialog(
+          title: Text('${c.name} — Wallet'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('Current: ₹${x.wallet.toStringAsFixed(2)}'),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              value: action,
+              items: const [
+                DropdownMenuItem(value: 'Add', child: Text('Add Balance')),
+                DropdownMenuItem(value: 'Deduct', child: Text('Deduct Balance')),
+              ],
+              onChanged: (v) => setD(() => action = v!),
+              decoration: const InputDecoration(
+                  labelText: 'Action', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 9),
+            TextField(
+              controller: amount,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                  labelText: 'Amount', prefixText: '₹ ',
+                  border: OutlineInputBorder()),
+            ),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                final v = double.tryParse(amount.text.trim()) ?? 0;
+                if (v <= 0) return;
+                setState(() {
+                  x.wallet = action == 'Add'
+                      ? x.wallet + v
+                      : (x.wallet - v).clamp(0, double.infinity).toDouble();
+                });
+                Navigator.pop(dialog);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    ).then((_) => amount.dispose());
   }
 }
 
-// -----------------------------------------------------------------------------
-// PAYMENTS
-// -----------------------------------------------------------------------------
+class _CustomerProfilePage extends StatelessWidget {
+  const _CustomerProfilePage({
+    required this.customer,
+    required this.extra,
+    required this.orders,
+    required this.spend,
+  });
 
-class PaymentsModule extends StatefulWidget {
-  const PaymentsModule({super.key, required this.data});
-  final KStoreAdminData data;
-
-  @override
-  State<PaymentsModule> createState() => _PaymentsModuleState();
-}
-
-class _PaymentsModuleState extends State<PaymentsModule> {
-  final Map<String, bool> methods = {
-    'Razorpay': true,
-    'UPI': true,
-    'Cards': true,
-    'Net Banking': true,
-    'Cash on Delivery': true,
-    'Wallet': true,
-  };
+  final CustomerAdmin customer;
+  final _CustomerExtra extra;
+  final List<OrderAdmin> orders;
+  final double spend;
 
   @override
   Widget build(BuildContext context) {
-    final total = widget.data.orders.fold<double>(0, (sum, o) => sum + o.amount);
-    return _Page(
-      child: Column(
-        children: [
-          const _ModuleHeader(
-            title: 'Payments',
-            subtitle: 'Payment gateways, methods, status and controls',
-            icon: Icons.payments_rounded,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Customer Profile'),
+        actions: [
+          IconButton(
+            icon: Icon(customer.enabled
+                ? Icons.lock_outline_rounded
+                : Icons.lock_open_rounded),
+            onPressed: () {
+              customer.enabled = !customer.enabled;
+              Navigator.pop(context);
+            },
           ),
-          _StatsStrip(items: [
-            ['Order Value', '₹${total.toStringAsFixed(0)}', Icons.currency_rupee_rounded],
-            ['Methods', '${methods.length}', Icons.payment_rounded],
-            ['Online', 'Enabled', Icons.check_circle_rounded],
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _hero(),
+          const SizedBox(height: 12),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            _stat('Orders', '${orders.length}'),
+            _stat('Spent', '₹${spend.toStringAsFixed(0)}'),
+            _stat('Wallet', '₹${extra.wallet.toStringAsFixed(0)}'),
+            _stat('Points', '${extra.points}'),
           ]),
           const SizedBox(height: 12),
-          _SectionCard(
-            title: 'Payment Methods',
-            icon: Icons.credit_card_rounded,
-            child: Column(
-              children: methods.entries
-                  .map(
-                    (e) => SwitchListTile(
-                      title: Text(e.key),
-                      subtitle: Text(e.value ? 'Enabled' : 'Disabled'),
-                      value: e.value,
-                      onChanged: (v) => setState(() => methods[e.key] = v),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _ActionGrid(
-            actions: [
-              _ToolAction('Add Gateway', Icons.add_card_rounded, () => _keyDialog('Payment Gateway')),
-              _ToolAction('Test Payment', Icons.bolt_rounded, () => _showSnack(context, 'Payment test mode opened.')),
-              _ToolAction('Refund', Icons.currency_exchange_rounded, () => _showSnack(context, 'Refund workflow opened.')),
-              _ToolAction('Transactions', Icons.receipt_long_rounded, () => _showSnack(context, 'Transactions opened.')),
-            ],
-          ),
+          _section('Personal Information', Icons.person_outline_rounded, [
+            _info('Customer ID', customer.id),
+            _info('Name', customer.name),
+            _info('Mobile', extra.mobile),
+            _info('Alternate Mobile', extra.alternateMobile),
+            _info('Email', customer.email),
+            _info('DOB', extra.dob),
+            _info('Gender', extra.gender),
+            _info('Type', extra.type),
+          ]),
+          _section('Address', Icons.location_on_outlined, [
+            _info('Address', extra.address),
+            _info('Landmark', extra.landmark),
+            _info('City', extra.city),
+            _info('State', extra.state),
+            _info('Pincode', extra.pincode),
+          ]),
+          _section('Order History', Icons.shopping_bag_outlined, orders.isEmpty
+              ? [const Text('No orders found.')]
+              : orders.map((o) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.receipt_long_rounded),
+                    title: Text(o.id),
+                    subtitle: Text('${o.status} • ${o.payment}'),
+                    trailing: Text('₹${o.amount.toStringAsFixed(0)}',
+                        style: const TextStyle(fontWeight: FontWeight.w800)),
+                  )).toList()),
+          _section('Notes', Icons.notes_rounded, [
+            Text(extra.notes.isEmpty ? 'No internal notes.' : extra.notes),
+          ]),
         ],
       ),
     );
   }
 
-  void _keyDialog(String title) => showDialog(
-        context: context,
-        builder: (context) => _CredentialDialog(title: title),
+  Widget _hero() => Card(
+        elevation: 0,
+        child: Padding(
+          padding: const EdgeInsets.all(17),
+          child: Row(children: [
+            CircleAvatar(
+              radius: 32,
+              child: Text(customer.name.isEmpty ? '?' : customer.name[0].toUpperCase(),
+                  style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800)),
+            ),
+            const SizedBox(width: 13),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(customer.name,
+                  style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+              Text('${customer.id} • ${extra.type}'),
+              const SizedBox(height: 4),
+              Text(customer.enabled ? 'Active' : 'Blocked'),
+            ])),
+          ]),
+        ),
+      );
+
+  Widget _stat(String title, String value) => Container(
+        width: 145,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(14)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title),
+          const SizedBox(height: 4),
+          Text(value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+        ]),
+      );
+
+  Widget _section(String title, IconData icon, List<Widget> children) => Card(
+        elevation: 0,
+        margin: const EdgeInsets.only(top: 12),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(icon, size: 20), const SizedBox(width: 7),
+              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            ]),
+            const Divider(height: 22),
+            ...children,
+          ]),
+        ),
+      );
+
+  Widget _info(String label, String value) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(width: 105, child: Text(label,
+              style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600))),
+          Expanded(child: Text(value.isEmpty ? '—' : value,
+              style: const TextStyle(fontWeight: FontWeight.w600))),
+        ]),
       );
 }
-
-// -----------------------------------------------------------------------------
-// DELIVERY & SHIPPING
-// -----------------------------------------------------------------------------
-
-class DeliveryShippingModule extends StatefulWidget {
-  const DeliveryShippingModule({super.key, required this.data});
-  final KStoreAdminData data;
-
-  @override
-  State<DeliveryShippingModule> createState() => _DeliveryShippingModuleState();
-}
-
-class _DeliveryShippingModuleState extends State<DeliveryShippingModule> {
-  final Map<String, bool> settings = {
-    'Free delivery above ₹999': true,
-    'COD available': true,
-    'PIN code validation': true,
-    'Delivery charge by PIN': true,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    return _Page(
-      child: Column(
-        children: [
-          _ModuleHeader(
-            title: 'Delivery & Shipping',
-            subtitle: 'Add couriers, configure charges, PIN codes and delivery rules',
-            icon: Icons.local_shipping_rounded,
-            actions: [
-              _PrimaryButton(label: 'Add Courier', icon: Icons.add_rounded, onPressed: () => _courierDialog()),
-            ],
-          ),
-          ...widget.data.shipping.map(
-            (s) => _AdminListCard(
-              title: s.name,
-              subtitle: '${s.type} • ${s.status}',
-              icon: Icons.local_shipping_rounded,
-              color: const Color(0xFFFFB20F),
-              enabled: s.enabled,
-              onToggle: (v) => setState(() => s.enabled = v),
-              actions: [
-                _ActionChip(label: 'Configure', icon: Icons.settings_rounded, onTap: () => _courierDialog(item: s)),
-                _ActionChip(label: 'Test', icon: Icons.bolt_rounded, onTap: () => _showSnack(context, '${s.name} connection test opened.')),
-                _ActionChip(label: 'Delete', icon: Icons.delete_outline_rounded, danger: true, onTap: () => setState(() => widget.data.shipping.remove(s))),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          _SectionCard(
-            title: 'Delivery Rules',
-            icon: Icons.rule_rounded,
-            child: Column(
-              children: settings.entries
-                  .map(
-                    (e) => SwitchListTile(
-                      title: Text(e.key),
-                      value: e.value,
-                      onChanged: (v) => setState(() => settings[e.key] = v),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _ActionGrid(
-            actions: [
-              _ToolAction('PIN Codes', Icons.pin_drop_rounded, () => _pinDialog()),
-              _ToolAction('Charges', Icons.currency_rupee_rounded, () => _keyDialog('Delivery Charges')),
-              _ToolAction('Blocked PINs', Icons.block_rounded, () => _pinDialog(blocked: true)),
-              _ToolAction('Shipping Labels', Icons.print_rounded, () => _showSnack(context, 'Shipping labels opened.')),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _courierDialog({ShippingAdmin? item}) async {
-    final name = TextEditingController(text: item?.name ?? '');
-    final type = TextEditingController(text: item?.type ?? 'API');
-    final id = TextEditingController(text: item?.id ?? 'S${DateTime.now().millisecondsSinceEpoch}');
-    await showDialog(
-      context: context,
-      builder: (context) => _FormDialog(
-        title: item == null ? 'Add Courier' : 'Configure Courier',
-        children: [_Field(id, 'Courier ID'), _Field(name, 'Courier Name'), _Field(type, 'Type')],
-        onSave: () {
-          setState(() {
-            if (item == null) {
-              widget.data.shipping.add(ShippingAdmin(id.text, name.text, type.text, 'Configured', true));
-            } else {
-              item.id = id.text;
-              item.name = name.text;
-              item.type = type.text;
-              item.status = 'Configured';
-            }
-          });
-          Navigator.pop(context);
-        },
-      ),
-    );
-    id.dispose();
-    name.dispose();
-    type.dispose();
-  }
-
-  Future<void> _pinDialog({bool blocked = false}) async {
-    final pin = TextEditingController();
-    await showDialog(
-      context: context,
-      builder: (context) => _FormDialog(
-        title: blocked ? 'Block PIN Code' : 'Add PIN Code',
-        children: [_Field(pin, 'PIN Code')],
-        onSave: () {
-          _showSnack(context, '${pin.text} ${blocked ? 'blocked' : 'added'} successfully.');
-          Navigator.pop(context);
-        },
-      ),
-    );
-    pin.dispose();
-  }
-
-  void _keyDialog(String title) => showDialog(
-        context: context,
-        builder: (context) => _CredentialDialog(title: title),
-      );
-}
-
-// -----------------------------------------------------------------------------
-// CUSTOM ORDERS
-// -----------------------------------------------------------------------------
 
 class CustomOrdersModule extends StatefulWidget {
   const CustomOrdersModule({super.key, required this.data});
