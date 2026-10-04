@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'shipping_label_4x6_real.dart';
 import 'add_category_page.dart';
 
 /// K - Store Admin Panel
@@ -8754,14 +8755,43 @@ class _DeliveryShippingModuleState extends State<DeliveryShippingModule> {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () {
+                        onPressed: () async {
                           Navigator.pop(context);
-                          _snack(
-                            'Label ready for printing. Connect the print/PDF service for physical output.',
+
+                          final labelData = ShippingLabel4x6Data(
+                            orderId: label.orderId,
+                            awb: label.awb,
+                            customerName: label.customer,
+                            phone: label.phone,
+                            address: label.address,
+                            cityStatePin: '',
+                            courier: label.courier,
+                            payment: label.payment,
+                            amount: label.amount,
+                            weight: label.weight,
+                            items: [
+                              ShippingLabelItem(
+                                name: 'Order ${label.orderId}',
+                                quantity: 1,
+                                price: label.amount,
+                              ),
+                            ],
+                            branding: ShippingLabelBranding(
+                              businessName: brand.businessName,
+                              phone: brand.phone,
+                              email: brand.email,
+                              address: brand.address,
+                              website: brand.website,
+                              logoText: brand.logoText,
+                              logoUrl: brand.logoUrl,
+                            ),
                           );
+
+                          await ShippingLabel4x6.printLabel(labelData);
                         },
                         icon: const Icon(Icons.print_rounded),
-                        label: const Text('Print / Export'),
+                        label: const Text('Print / Export 4×6'),
+                      )
                       ),
                     ),
                     const SizedBox(width: 10),

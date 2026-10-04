@@ -28,6 +28,8 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  pdf: ^3.11.3
+  printing: ^5.14.2
   shared_preferences: ^2.5.3
   flutter:
     sdk: flutter
