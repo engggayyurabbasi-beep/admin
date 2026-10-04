@@ -572,7 +572,42 @@ class DashboardModule extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           _FooterAdminCard(
-            onLogout: () => _showSnack(context, 'Logout action is ready.'),
+            onLogout: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) {
+                  return AlertDialog(
+                    title: const Text('Logout'),
+                    content: const Text(
+                      'Are you sure you want to logout from Admin Panel?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop(false);
+                        },
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop(true);
+                        },
+                        child: const Text('Logout'),
+                      ),
+                    ],
+                  );
+                },
+              );
+
+              if (confirm != true || !context.mounted) return;
+
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (_) => AdminLoginPage(),
+                ),
+                (route) => false,
+              );
+            },
           ),
         ],
       ),
