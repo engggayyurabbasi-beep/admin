@@ -8760,30 +8760,31 @@ class _DeliveryShippingModuleState extends State<DeliveryShippingModule> {
 
                           final labelData = ShippingLabel4x6Data(
                             orderId: label.orderId,
+                            orderDate: DateTime.now().toString().split(' ').first,
                             awb: label.awb,
-                            customerName: label.customer,
-                            phone: label.phone,
-                            address: label.address,
-                            cityStatePin: '',
                             courier: label.courier,
+                            customerName: label.customer,
+                            address: label.address,
+                            city: '',
+                            state: '',
+                            pinCode: '',
+                            phone: label.phone,
                             payment: label.payment,
-                            amount: label.amount,
                             weight: label.weight,
                             items: [
                               ShippingLabelItem(
                                 name: 'Order ${label.orderId}',
-                                quantity: 1,
+                                qty: 1,
                                 price: label.amount,
                               ),
                             ],
-                            branding: ShippingLabelBranding(
+                            brand: ShippingLabelBranding(
                               businessName: brand.businessName,
-                              phone: brand.phone,
-                              email: brand.email,
+                              tagline: 'K - Store',
                               address: brand.address,
+                              phone: brand.phone,
                               website: brand.website,
                               logoText: brand.logoText,
-                              logoUrl: brand.logoUrl,
                             ),
                           );
 
@@ -8791,7 +8792,6 @@ class _DeliveryShippingModuleState extends State<DeliveryShippingModule> {
                         },
                         icon: const Icon(Icons.print_rounded),
                         label: const Text('Print / Export 4×6'),
-                      )
                       ),
                     ),
                     const SizedBox(width: 10),
