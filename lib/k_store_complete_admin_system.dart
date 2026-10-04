@@ -391,14 +391,7 @@ final List<int> _sectionHistory = [0];
             ),
           ],
         ),
-        Padding(
-          padding: const EdgeInsets.only(right: 14),
-          child: CircleAvatar(
-            radius: 21,
-            backgroundColor: const Color(0xFFFFE5EC),
-            child: const Icon(Icons.person_rounded, color: Color(0xFFFF315B)),
-          ),
-        ),
+
       ],
     );
   }
