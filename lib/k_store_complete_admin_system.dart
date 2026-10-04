@@ -8484,14 +8484,14 @@ class _DeliveryShippingModuleState extends State<DeliveryShippingModule> {
     _ShipmentLabelRecord? item,
   }) async {
     final order = TextEditingController(
-      text: item?.orderId ?? widget.data.orders.isEmpty ? null : widget.data.orders.first.id ?? '',
+      text: item?.orderId ?? (widget.data.orders.isEmpty ? '' : widget.data.orders.first.id),
     );
     final awb = TextEditingController(
       text: item?.awb ??
           'AWB${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}',
     );
     final customer = TextEditingController(
-      text: item?.customer ?? widget.data.orders.isEmpty ? null : widget.data.orders.first.customer ?? '',
+      text: item?.customer ?? (widget.data.orders.isEmpty ? '' : widget.data.orders.first.customer),
     );
     final phone = TextEditingController(
       text: item?.phone ?? '',
