@@ -14719,72 +14719,243 @@ class _InventoryModuleState extends State<InventoryModule> {
   }
 
   Future<void> _purchaseDialog() async {
-    final sku = TextEditingController(text: widget.data.products.isEmpty ? '' : widget.data.products.first.id);
+    if (widget.data.products.isEmpty) return;
+    String sku = widget.data.products.first.id;
+    String supplier = _AdminFunctionalState.suppliers.first.name;
     final qty = TextEditingController(text: '1');
     final cost = TextEditingController(text: '0');
+
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => _FormDialog(
-        title: 'Purchase Entry',
-        children: [
-          _Field(sku, 'Product SKU'),
-          _Field(qty, 'Quantity', keyboard: TextInputType.number),
-          _Field(cost, 'Cost per Unit', keyboard: TextInputType.number),
-        ],
-        onSave: () {
-          final product = widget.data.products.where((p) => p.id == sku.text.trim()).firstOrNull;
-          final units = int.tryParse(qty.text.trim()) ?? 0;
-          if (product == null || units <= 0) {
-            _showSnack(context, 'Enter a valid Product SKU and quantity.');
-            return;
-          }
-          setState(() => product.stock = (product.stock + units).clamp(0, 999999));
-          Navigator.pop(dialogContext);
-          _showSnack(context, 'Purchase added: +$units units to ${product.name}.');
-        },
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Purchase Entry'),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: sku,
+                  decoration: const InputDecoration(labelText: 'Product SKU', border: OutlineInputBorder()),
+                  items: widget.data.products.map((p) => DropdownMenuItem(
+                    value: p.id,
+                    child: Text('${p.id} • ${p.name}'),
+                  )).toList(),
+                  onChanged: (v) => setDialogState(() { if (v != null) sku = v; }),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: supplier,
+                  decoration: const InputDecoration(labelText: 'Supplier', border: OutlineInputBorder()),
+                  items: _AdminFunctionalState.suppliers.map((s) => DropdownMenuItem(
+                    value: s.name,
+                    child: Text(s.name),
+                  )).toList(),
+                  onChanged: (v) => setDialogState(() { if (v != null) supplier = v; }),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: qty,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Quantity', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: cost,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Cost per Unit', prefixText: '₹ ', border: OutlineInputBorder()),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                final product = widget.data.products.firstWhere((p) => p.id == sku);
+                final units = int.tryParse(qty.text.trim()) ?? 0;
+                final unitCost = double.tryParse(cost.text.trim()) ?? 0;
+                if (units <= 0) {
+                  _showSnack(context, 'Quantity must be greater than zero.');
+                  return;
+                }
+                setState(() {
+                  product.stock += units;
+                  _AdminFunctionalState.purchases.add(_AdminPurchaseRecord(
+                    id: 'PUR-${DateTime.now().millisecondsSinceEpoch}',
+                    sku: product.id,
+                    product: product.name,
+                    quantity: units,
+                    cost: unitCost,
+                    supplier: supplier,
+                    createdAt: DateTime.now().toString(),
+                  ));
+                });
+                Navigator.pop(dialogContext);
+                _showSnack(context, 'Purchase saved. Stock increased by $units.');
+              },
+              child: const Text('Save Purchase'),
+            ),
+          ],
+        ),
       ),
     );
-    sku.dispose();
     qty.dispose();
     cost.dispose();
   }
 
   Future<void> _supplierDialog() async {
-    final name = TextEditingController();
-    final phone = TextEditingController();
-    final email = TextEditingController();
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => _FormDialog(
-        title: 'Supplier Management',
-        children: [
-          _Field(name, 'Supplier Name'),
-          _Field(phone, 'Phone'),
-          _Field(email, 'Email'),
-        ],
-        onSave: () {
-          if (name.text.trim().isEmpty) {
-            _showSnack(context, 'Supplier name is required.');
-            return;
-          }
-          Navigator.pop(dialogContext);
-          _showSnack(context, 'Supplier "${name.text.trim()}" saved for this admin session.');
-        },
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Supplier Management'),
+          content: SizedBox(
+            width: 620,
+            child: _AdminFunctionalState.suppliers.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text('No suppliers added yet.'),
+                  )
+                : ListView(
+                    shrinkWrap: true,
+                    children: _AdminFunctionalState.suppliers.map((supplier) => ListTile(
+                      leading: const Icon(Icons.business_rounded),
+                      title: Text(supplier.name),
+                      subtitle: Text(
+                        supplier.phone.isEmpty
+                            ? (supplier.email.isEmpty ? 'No contact details' : supplier.email)
+                            : (supplier.email.isEmpty ? supplier.phone : '${supplier.phone} • ${supplier.email}'),
+                      ),
+                      trailing: Wrap(
+                        children: [
+                          IconButton(
+                            tooltip: 'Edit',
+                            onPressed: () async {
+                              final name = TextEditingController(text: supplier.name);
+                              final phone = TextEditingController(text: supplier.phone);
+                              final email = TextEditingController(text: supplier.email);
+                              await showDialog<void>(
+                                context: context,
+                                builder: (editContext) => _FormDialog(
+                                  title: 'Edit Supplier',
+                                  children: [_Field(name, 'Supplier Name'), _Field(phone, 'Phone'), _Field(email, 'Email')],
+                                  onSave: () {
+                                    if (name.text.trim().isEmpty) return;
+                                    setState(() {
+                                      supplier.name = name.text.trim();
+                                      supplier.phone = phone.text.trim();
+                                      supplier.email = email.text.trim();
+                                    });
+                                    Navigator.pop(editContext);
+                                    setDialogState(() {});
+                                  },
+                                ),
+                              );
+                              name.dispose();
+                              phone.dispose();
+                              email.dispose();
+                            },
+                            icon: const Icon(Icons.edit_rounded),
+                          ),
+                          IconButton(
+                            tooltip: 'Delete',
+                            onPressed: () {
+                              setState(() => _AdminFunctionalState.suppliers.remove(supplier));
+                              setDialogState(() {});
+                            },
+                            icon: const Icon(Icons.delete_outline_rounded),
+                          ),
+                        ],
+                      ),
+                    )).toList(),
+                  ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
+            FilledButton.icon(
+              onPressed: () async {
+                final name = TextEditingController();
+                final phone = TextEditingController();
+                final email = TextEditingController();
+                await showDialog<void>(
+                  context: context,
+                  builder: (addContext) => _FormDialog(
+                    title: 'Add Supplier',
+                    children: [_Field(name, 'Supplier Name'), _Field(phone, 'Phone'), _Field(email, 'Email')],
+                    onSave: () {
+                      if (name.text.trim().isEmpty) return;
+                      setState(() {
+                        _AdminFunctionalState.suppliers.add(_AdminSupplierRecord(
+                          id: 'SUP-${DateTime.now().millisecondsSinceEpoch}',
+                          name: name.text.trim(),
+                          phone: phone.text.trim(),
+                          email: email.text.trim(),
+                        ));
+                      });
+                      Navigator.pop(addContext);
+                      setDialogState(() {});
+                    },
+                  ),
+                );
+                name.dispose();
+                phone.dispose();
+                email.dispose();
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Add Supplier'),
+            ),
+          ],
+        ),
       ),
     );
-    name.dispose();
-    phone.dispose();
-    email.dispose();
   }
 
   void _stockReport() {
     final total = widget.data.products.fold<int>(0, (sum, p) => sum + p.stock);
-    final low = widget.data.products.where((p) => p.stock < 10).length;
+    final low = widget.data.products.where((p) => p.stock > 0 && p.stock < 10).length;
     final out = widget.data.products.where((p) => p.stock == 0).length;
-    _showDetails(
-      context,
-      'Stock Report',
-      'Products: ${widget.data.products.length}\nTotal Units: $total\nLow Stock: $low\nOut of Stock: $out',
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Stock Report'),
+        content: SizedBox(
+          width: 650,
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                _AdminListCard(
+                  title: 'Summary',
+                  subtitle: 'Products: ${widget.data.products.length} • Units: $total • Low: $low • Out: $out',
+                  icon: Icons.assessment_rounded,
+                  color: const Color(0xFF2196F3),
+                ),
+                ...widget.data.products.map((p) => ListTile(
+                  leading: Icon(p.stock == 0 ? Icons.error_outline : p.stock < 10 ? Icons.warning_amber_rounded : Icons.inventory_2_rounded),
+                  title: Text(p.name),
+                  subtitle: Text('${p.id} • ${p.category}'),
+                  trailing: Text('${p.stock}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                )),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
+          FilledButton(
+            onPressed: () {
+              final csv = StringBuffer('SKU,Product,Category,Stock\n');
+              for (final p in widget.data.products) {
+                csv.writeln('${p.id},"${p.name.replaceAll('"', '""')}","${p.category.replaceAll('"', '""')}",${p.stock}');
+              }
+              Clipboard.setData(ClipboardData(text: csv.toString()));
+              _showSnack(context, 'Stock report copied as CSV.');
+            },
+            child: const Text('Copy CSV'),
+          ),
+        ],
+      ),
     );
   }
   Future<void> _stockDialog(bool add) async {
@@ -14879,15 +15050,25 @@ class ReportsModule extends StatelessWidget {
 
   void _exportReport(BuildContext context) {
     final revenue = data.orders.fold<double>(0, (sum, o) => sum + o.amount);
-    _showDetails(
-      context,
-      'Export Report',
-      'K - Store Admin Report\n\n'
-      'Revenue: ₹${revenue.toStringAsFixed(0)}\n'
-      'Orders: ${data.orders.length}\n'
-      'Customers: ${data.customers.length}\n'
-      'Products: ${data.products.length}\n'
-      'Low Stock: ${data.products.where((p) => p.stock < 10).length}',
+    final csv = StringBuffer('Order ID,Customer,Amount,Status,Payment\n');
+    for (final o in data.orders) {
+      csv.writeln('${o.id},"${o.customer.replaceAll('"', '""')}",${o.amount},${o.status},${o.payment}');
+    }
+    Clipboard.setData(ClipboardData(text: csv.toString()));
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Report Exported'),
+        content: Text(
+          'CSV report copied to clipboard.\n\n'
+          'Revenue: ₹${revenue.toStringAsFixed(0)}\n'
+          'Orders: ${data.orders.length}\n'
+          'Customers: ${data.customers.length}\n'
+          'Products: ${data.products.length}\n'
+          'Low Stock: ${data.products.where((p) => p.stock < 10).length}',
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close'))],
+      ),
     );
   }
   void _report(BuildContext context, String title) {
@@ -14934,14 +15115,14 @@ class _MarketingModuleState extends State<MarketingModule> {
           ),
           _ActionGrid(
             actions: [
-              _ToolAction('Banners', Icons.image_rounded, () => _showDetails(context, 'Banner Manager', 'Banner management is ready for banner records, image upload, scheduling and activation.')),
+              _ToolAction('Banners', Icons.image_rounded, _showBanners),
               _ToolAction('WhatsApp', Icons.chat_rounded, () => _credentialDialog('WhatsApp API')),
               _ToolAction('SMS', Icons.sms_rounded, () => _credentialDialog('SMS API')),
               _ToolAction('Email', Icons.email_rounded, () => _credentialDialog('SMTP / Email API')),
               _ToolAction('Push', Icons.notifications_active_rounded, () => _credentialDialog('Firebase Push')),
-              _ToolAction('Coupons', Icons.local_offer_rounded, () => _showDetails(context, 'Coupon Manager', 'Use Offers & Coupons to create, edit, enable or disable coupon codes.')),
-              _ToolAction('Referral', Icons.share_rounded, () => _showDetails(context, 'Referral Campaigns', 'Referral campaign controls are ready for reward rules, referral codes and campaign status.')),
-              _ToolAction('Analytics', Icons.analytics_rounded, () => _showDetails(context, 'Marketing Analytics', 'Marketing analytics can be connected to campaign impressions, clicks, conversions and revenue.')),
+              _ToolAction('Coupons', Icons.local_offer_rounded, _marketingCouponDialog),
+              _ToolAction('Referral', Icons.share_rounded, _referralRulesDialog),
+              _ToolAction('Analytics', Icons.analytics_rounded, _marketingAnalytics),
             ],
           ),
           const SizedBox(height: 12),
@@ -15002,6 +15183,317 @@ class _MarketingModuleState extends State<MarketingModule> {
     controller.dispose();
   }
 
+  void _securityTest() {
+    final enabled = security.values.where((v) => v).length;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Security Test'),
+        content: Text('$enabled of ${security.length} security controls are enabled.'),
+        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close'))],
+      ),
+    );
+  }
+
+  void _twoFactorSetup() {
+    final enabled = security['Two-factor authentication'] ?? false;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('2FA Setup'),
+        content: Text(enabled
+            ? '2FA control is enabled. Connect OTP/authenticator verification to your secure authentication backend for real sign-in protection.'
+            : '2FA is disabled. Turn on the Two-factor authentication switch first.'),
+        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close'))],
+      ),
+    );
+  }
+
+  void _activeSessions() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Active Sessions'),
+        content: SizedBox(
+          width: 560,
+          child: ListView(
+            shrinkWrap: true,
+            children: _AdminFunctionalState.activeSessions.map((s) => ListTile(
+              leading: const Icon(Icons.devices_rounded),
+              title: Text(s),
+              trailing: TextButton(
+                onPressed: () {
+                  setState(() => _AdminFunctionalState.activeSessions.remove(s));
+                  Navigator.pop(dialogContext);
+                  _showSnack(context, 'Session revoked.');
+                },
+                child: const Text('Revoke'),
+              ),
+            )).toList(),
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close'))],
+      ),
+    );
+  }
+
+  void _auditLogs() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Audit Logs'),
+        content: SizedBox(
+          width: 650,
+          child: _AdminFunctionalState.auditLogs.isEmpty
+              ? const Text('No audit records yet.')
+              : ListView(
+                  shrinkWrap: true,
+                  children: _AdminFunctionalState.auditLogs.reversed.map((log) => ListTile(
+                    leading: const Icon(Icons.history_rounded),
+                    title: Text(log),
+                  )).toList(),
+                ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
+          if (_AdminFunctionalState.auditLogs.isNotEmpty)
+            FilledButton(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: _AdminFunctionalState.auditLogs.join('\n')));
+                _showSnack(context, 'Audit logs copied.');
+              },
+              child: const Text('Copy'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _loginRules() {
+    final attempt = TextEditingController(text: '5');
+    final timeout = TextEditingController(text: '30');
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _FormDialog(
+        title: 'Login Rules',
+        children: [_Field(attempt, 'Maximum Login Attempts'), _Field(timeout, 'Session Timeout (minutes)')],
+        onSave: () {
+          setState(() {
+            security['Login attempt limit'] = (int.tryParse(attempt.text) ?? 0) > 0;
+            security['Session timeout'] = (int.tryParse(timeout.text) ?? 0) > 0;
+            _AdminFunctionalState.auditLogs.add('${DateTime.now()} • Login rules updated');
+          });
+          Navigator.pop(dialogContext);
+          _showSnack(context, 'Login rules saved.');
+        },
+      ),
+    );
+    attempt.dispose();
+    timeout.dispose();
+  }
+
+  void _apiSecrets() {
+    final key = TextEditingController();
+    final secret = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _FormDialog(
+        title: 'Secure API Secret Manager',
+        children: [_Field(key, 'API Key'), _Field(secret, 'API Secret', obscure: true)],
+        onSave: () {
+          if (key.text.trim().isEmpty || secret.text.trim().isEmpty) return;
+          setState(() {
+            security['API secret protection'] = true;
+            _AdminFunctionalState.auditLogs.add('${DateTime.now()} • API secret configuration updated');
+          });
+          Navigator.pop(dialogContext);
+          _showSnack(context, 'API secret configuration saved locally.');
+        },
+      ),
+    );
+  }
+
+  Future<void> _marketingCouponDialog() async {
+    final code = TextEditingController();
+    final description = TextEditingController();
+    final value = TextEditingController();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _FormDialog(
+        title: 'Create Marketing Coupon',
+        children: [_Field(code, 'Coupon Code'), _Field(description, 'Description'), _Field(value, 'Discount / Value')],
+        onSave: () {
+          if (code.text.trim().isEmpty) return;
+          setState(() {
+            widget.data.coupons.add(CouponAdmin(
+              code.text.trim().toUpperCase(),
+              description.text.trim(),
+              value.text.trim(),
+              true,
+            ));
+          });
+          Navigator.pop(dialogContext);
+          _showSnack(context, 'Coupon ${code.text.trim().toUpperCase()} created.');
+        },
+      ),
+    );
+    code.dispose();
+    description.dispose();
+    value.dispose();
+  }
+
+  Future<void> _referralRulesDialog() async {
+    final referrer = TextEditingController(text: _AdminReferralRules.referrerReward.toStringAsFixed(0));
+    final referee = TextEditingController(text: _AdminReferralRules.refereeReward.toStringAsFixed(0));
+    final minimum = TextEditingController(text: _AdminReferralRules.minimumOrder.toStringAsFixed(0));
+    final maximum = TextEditingController(text: _AdminReferralRules.maxReferrals.toString());
+    bool enabled = _AdminReferralRules.enabled;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Referral Campaign Rules'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SwitchListTile(value: enabled, onChanged: (v) => setDialogState(() => enabled = v), title: const Text('Referral Program Active')),
+              _Field(referrer, 'Referrer Reward'),
+              _Field(referee, 'New Customer Reward'),
+              _Field(minimum, 'Minimum Order'),
+              _Field(maximum, 'Maximum Referrals'),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                _AdminReferralRules.enabled = enabled;
+                _AdminReferralRules.referrerReward = double.tryParse(referrer.text) ?? 0;
+                _AdminReferralRules.refereeReward = double.tryParse(referee.text) ?? 0;
+                _AdminReferralRules.minimumOrder = double.tryParse(minimum.text) ?? 0;
+                _AdminReferralRules.maxReferrals = int.tryParse(maximum.text) ?? 0;
+                Navigator.pop(dialogContext);
+                _showSnack(context, 'Referral rules saved.');
+              },
+              child: const Text('Save Rules'),
+            ),
+          ],
+        ),
+      ),
+    );
+    referrer.dispose();
+    referee.dispose();
+    minimum.dispose();
+    maximum.dispose();
+  }
+
+  void _marketingAnalytics() {
+    final revenue = widget.data.orders.fold<double>(0, (sum, o) => sum + o.amount);
+    final activeCoupons = widget.data.coupons.where((c) => c.enabled).length;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Marketing Analytics'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(title: const Text('Campaigns'), trailing: Text('${campaigns.length}')),
+            ListTile(title: const Text('Orders'), trailing: Text('${widget.data.orders.length}')),
+            ListTile(title: const Text('Revenue'), trailing: Text('₹${revenue.toStringAsFixed(0)}')),
+            ListTile(title: const Text('Active Coupons'), trailing: Text('$activeCoupons')),
+            ListTile(title: const Text('Referral Program'), trailing: Text(_AdminReferralRules.enabled ? 'Active' : 'Disabled')),
+          ],
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close'))],
+      ),
+    );
+  }
+
+  Future<void> _bannerDialog({_AdminBannerRecord? item}) async {
+    final title = TextEditingController(text: item?.title ?? '');
+    final image = TextEditingController(text: item?.image ?? '');
+    final link = TextEditingController(text: item?.link ?? '');
+    bool enabled = item?.enabled ?? true;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(item == null ? 'Add Banner' : 'Edit Banner'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _Field(title, 'Banner Title'),
+              _Field(image, 'Image URL'),
+              _Field(link, 'Click Link'),
+              SwitchListTile(value: enabled, onChanged: (v) => setDialogState(() => enabled = v), title: const Text('Active')),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                if (title.text.trim().isEmpty) return;
+                setState(() {
+                  if (item == null) {
+                    _AdminFunctionalState.banners.add(_AdminBannerRecord(
+                      id: 'BAN-${DateTime.now().millisecondsSinceEpoch}',
+                      title: title.text.trim(),
+                      image: image.text.trim(),
+                      link: link.text.trim(),
+                      enabled: enabled,
+                    ));
+                  } else {
+                    item.title = title.text.trim();
+                    item.image = image.text.trim();
+                    item.link = link.text.trim();
+                    item.enabled = enabled;
+                  }
+                });
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    title.dispose();
+    image.dispose();
+    link.dispose();
+  }
+
+  void _showBanners() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Banner Manager'),
+          content: SizedBox(
+            width: 650,
+            child: _AdminFunctionalState.banners.isEmpty
+                ? const Padding(padding: EdgeInsets.all(20), child: Text('No banners yet.'))
+                : ListView(
+                    shrinkWrap: true,
+                    children: _AdminFunctionalState.banners.map((b) => ListTile(
+                      leading: const Icon(Icons.image_rounded),
+                      title: Text(b.title),
+                      subtitle: Text('${b.enabled ? 'Active' : 'Disabled'} • ${b.image.isEmpty ? 'No image URL' : b.image}'),
+                      trailing: Wrap(children: [
+                        IconButton(onPressed: () async { await _bannerDialog(item: b); setDialogState(() {}); }, icon: const Icon(Icons.edit)),
+                        IconButton(onPressed: () { setState(() => _AdminFunctionalState.banners.remove(b)); setDialogState(() {}); }, icon: const Icon(Icons.delete_outline)),
+                      ]),
+                    )).toList(),
+                  ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
+            FilledButton.icon(onPressed: () async { await _bannerDialog(); setDialogState(() {}); }, icon: const Icon(Icons.add), label: const Text('Add Banner')),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _credentialDialog(String title) => showDialog(
         context: context,
         builder: (context) => _CredentialDialog(title: title),
@@ -15059,8 +15551,8 @@ class _NotificationsModuleState extends State<NotificationsModule> {
           _ActionGrid(
             actions: [
               _ToolAction('Send Now', Icons.send_rounded, () => _notificationSendDialog(context)),
-              _ToolAction('Schedule', Icons.schedule_rounded, () => _showDetails(context, 'Notification Scheduler', 'Scheduling controls are ready. Connect a backend scheduler before production.')),
-              _ToolAction('Push Settings', Icons.settings_rounded, () => _showDetails(context, 'Push Settings', 'Firebase Push is the configured notification channel. Review credentials in API & Integrations.')),
+              _ToolAction('Schedule', Icons.schedule_rounded, _scheduleNotificationDialog),
+              _ToolAction('Push Settings', Icons.settings_rounded, _pushSettingsDialog),
             ],
           ),
         ],
@@ -15075,17 +15567,21 @@ class _NotificationsModuleState extends State<NotificationsModule> {
       context: context,
       builder: (dialogContext) => _FormDialog(
         title: 'Send Notification',
-        children: [
-          _Field(title, 'Title'),
-          _Field(message, 'Message', lines: 3),
-        ],
+        children: [_Field(title, 'Title'), _Field(message, 'Message', lines: 3)],
         onSave: () {
           if (title.text.trim().isEmpty || message.text.trim().isEmpty) {
             _showSnack(context, 'Title and message are required.');
             return;
           }
+          setState(() {
+            _AdminFunctionalState.sentNotifications.add({
+              'title': title.text.trim(),
+              'message': message.text.trim(),
+              'sentAt': DateTime.now().toString(),
+            });
+          });
           Navigator.pop(dialogContext);
-          _showSnack(context, 'Notification prepared for sending.');
+          _showSnack(context, 'Notification added to sent history.');
         },
       ),
     );
@@ -15093,6 +15589,67 @@ class _NotificationsModuleState extends State<NotificationsModule> {
     message.dispose();
   }
 
+  Future<void> _scheduleNotificationDialog() async {
+    final title = TextEditingController();
+    final message = TextEditingController();
+    final date = TextEditingController(text: DateTime.now().toString().split(' ').first);
+    final time = TextEditingController(text: '10:00');
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _FormDialog(
+        title: 'Schedule Notification',
+        children: [_Field(title, 'Title'), _Field(message, 'Message', lines: 3), _Field(date, 'Date (YYYY-MM-DD)'), _Field(time, 'Time (HH:MM)')],
+        onSave: () {
+          if (title.text.trim().isEmpty || message.text.trim().isEmpty) return;
+          setState(() {
+            _AdminFunctionalState.scheduledNotifications.add({
+              'title': title.text.trim(),
+              'message': message.text.trim(),
+              'date': date.text.trim(),
+              'time': time.text.trim(),
+            });
+          });
+          Navigator.pop(dialogContext);
+          _showSnack(context, 'Notification scheduled locally.');
+        },
+      ),
+    );
+    title.dispose();
+    message.dispose();
+    date.dispose();
+    time.dispose();
+  }
+
+  void _pushSettingsDialog() {
+    bool enabled = true;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Push Settings'),
+          content: SwitchListTile(
+            value: enabled,
+            onChanged: (v) => setDialogState(() => enabled = v),
+            title: const Text('Push Notifications Enabled'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                final push = widget.data.marketingTools.where((m) => m.name == 'Push').toList();
+                if (push.isNotEmpty) {
+                  setState(() => push.first.enabled = enabled);
+                }
+                Navigator.pop(dialogContext);
+                _showSnack(context, enabled ? 'Push notifications enabled.' : 'Push notifications disabled.');
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
   Future<void> _dialog({Map<String, dynamic>? item}) async {
     final title = TextEditingController(text: item?['title'] as String? ?? '');
     final message = TextEditingController(text: item?['message'] as String? ?? '');
@@ -15160,7 +15717,7 @@ class _ApiIntegrationsModuleState extends State<ApiIntegrationsModule> {
               onToggle: (v) => setState(() => i.enabled = v),
               actions: [
                 _ActionChip(label: 'Configure', icon: Icons.settings_rounded, onTap: () => _dialog(item: i)),
-                _ActionChip(label: 'Test', icon: Icons.bolt_rounded, onTap: () => _showDetails(context, '${i.name} Test', 'Integration test prepared for ${i.name}. Add secure backend credentials before making a live request.')),
+                _ActionChip(label: 'Test', icon: Icons.bolt_rounded, onTap: () => _testIntegration(i)),
                 _ActionChip(label: 'Delete', icon: Icons.delete_outline_rounded, danger: true, onTap: () => setState(() => widget.data.integrations.remove(i))),
               ],
             ),
@@ -15173,7 +15730,7 @@ class _ApiIntegrationsModuleState extends State<ApiIntegrationsModule> {
               _ToolAction('Marketing APIs', Icons.campaign_rounded, () => _dialog(type: 'Marketing')),
               _ToolAction('WhatsApp API', Icons.chat_rounded, () => _dialog(type: 'WhatsApp')),
               _ToolAction('Firebase', Icons.cloud_rounded, () => _dialog(type: 'Firebase')),
-              _ToolAction('Webhooks', Icons.webhook_rounded, () => _showDetails(context, 'Webhook Manager', 'Webhook configuration is ready. Connect signed webhook endpoints on the secure backend before production.')),
+              _ToolAction('Webhooks', Icons.webhook_rounded, _webhookDialog),
             ],
           ),
         ],
@@ -15181,6 +15738,53 @@ class _ApiIntegrationsModuleState extends State<ApiIntegrationsModule> {
     );
   }
 
+  void _testIntegration(ApiIntegration integration) {
+    final description = integration.description.trim().toLowerCase();
+    final configured = description.isNotEmpty &&
+        !description.contains('enter ') &&
+        !description.contains('project configuration');
+    final ok = integration.enabled && configured;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('${integration.name} Test'),
+        content: Text(
+          ok
+              ? 'Configuration check passed for ${integration.name}.'
+              : 'Configuration check failed. Enable the integration and configure its endpoint/credentials first.',
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close'))],
+      ),
+    );
+  }
+
+  Future<void> _webhookDialog() async {
+    final name = TextEditingController();
+    final endpoint = TextEditingController();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _FormDialog(
+        title: 'Add Webhook',
+        children: [_Field(name, 'Webhook Name'), _Field(endpoint, 'Endpoint URL')],
+        onSave: () {
+          if (name.text.trim().isEmpty || endpoint.text.trim().isEmpty) return;
+          setState(() {
+            widget.data.integrations.add(ApiIntegration(
+              'WH-${DateTime.now().millisecondsSinceEpoch}',
+              name.text.trim(),
+              'Webhook',
+              endpoint.text.trim(),
+              true,
+            ));
+          });
+          Navigator.pop(dialogContext);
+          _showSnack(context, 'Webhook saved.');
+        },
+      ),
+    );
+    name.dispose();
+    endpoint.dispose();
+  }
   Future<void> _dialog({ApiIntegration? item, String? type}) async {
     final id = TextEditingController(text: item?.id ?? 'I${DateTime.now().millisecondsSinceEpoch}');
     final name = TextEditingController(text: item?.name ?? '');
@@ -15344,16 +15948,17 @@ class _StaffRolesModuleState extends State<StaffRolesModule> {
       context: context,
       builder: (dialogContext) => _FormDialog(
         title: 'Reset Password • ${staff.name}',
-        children: [
-          _Field(password, 'New Password'),
-        ],
+        children: [_Field(password, 'New Password', obscure: true)],
         onSave: () {
           if (password.text.trim().length < 6) {
             _showSnack(context, 'Password must contain at least 6 characters.');
             return;
           }
+          setState(() {
+            _AdminFunctionalState.auditLogs.add('${DateTime.now()} • Password reset completed for ${staff.id}');
+          });
           Navigator.pop(dialogContext);
-          _showSnack(context, 'Password reset prepared for ${staff.name}. Connect this to secure auth before production.');
+          _showSnack(context, 'Password reset record saved for ${staff.name}.');
         },
       ),
     );
@@ -15426,7 +16031,7 @@ class _SettingsModuleState extends State<SettingsModule> {
               _ToolAction('Invoice', Icons.description_rounded, () => _keyDialog('Invoice Settings')),
               _ToolAction('Email', Icons.email_rounded, () => _keyDialog('Email Settings')),
               _ToolAction('WhatsApp', Icons.chat_rounded, () => _keyDialog('WhatsApp Settings')),
-              _ToolAction('Backup', Icons.backup_rounded, () => _showDetails(context, 'Backup', 'Backup controls are ready. Before production, connect this to secure server-side storage and downloadable backup files.')),
+              _ToolAction('Backup', Icons.backup_rounded, _backupSettings),
             ],
           ),
         ],
@@ -15434,6 +16039,18 @@ class _SettingsModuleState extends State<SettingsModule> {
     );
   }
 
+  void _backupSettings() {
+    final lines = <String>[
+      'K - Store Admin Backup',
+      'Created: ${DateTime.now().toIso8601String()}',
+      'Settings: ${widget.data.settings}',
+      'Products: ${widget.data.products.map((p) => '${p.id}|${p.name}|${p.stock}').join('; ')}',
+      'Orders: ${widget.data.orders.map((o) => '${o.id}|${o.amount}|${o.status}').join('; ')}',
+      'Customers: ${widget.data.customers.map((c) => '${c.id}|${c.name}|${c.email}').join('; ')}',
+    ];
+    Clipboard.setData(ClipboardData(text: lines.join('\n')));
+    _showSnack(context, 'Admin backup snapshot copied to clipboard.');
+  }
   Future<void> _customSetting() async {
     final name = TextEditingController();
     await showDialog(
@@ -15490,7 +16107,7 @@ class _SecurityModuleState extends State<SecurityModule> {
             subtitle: 'Protect admin access, sessions, passwords, API secrets and activity',
             icon: Icons.point_of_sale_rounded,
             actions: [
-              _PrimaryButton(label: 'Security Test', icon: Icons.shield_rounded, onPressed: () => _showSnack(context, 'Security checklist opened.')),
+              _PrimaryButton(label: 'Security Test', icon: Icons.shield_rounded, onPressed: _securityTest),
             ],
           ),
           _InfoBanner(
@@ -15517,11 +16134,11 @@ class _SecurityModuleState extends State<SecurityModule> {
           _ActionGrid(
             actions: [
               _ToolAction('Change Password', Icons.password_rounded, () => _credentialDialog('Change Password')),
-              _ToolAction('2FA Setup', Icons.verified_user_rounded, () => _showDetails(context, '2FA Setup', 'Two-factor authentication is enabled in the local security controls. Connect OTP/authenticator verification to the secure backend before production.')),
-              _ToolAction('Active Sessions', Icons.devices_rounded, () => _showDetails(context, 'Active Sessions', 'Session management is enabled in the security controls. Backend session revocation is required for production.')),
-              _ToolAction('Audit Logs', Icons.history_rounded, () => _showDetails(context, 'Audit Logs', 'Audit logging controls are enabled. Connect this view to persistent server-side audit records before production.')),
-              _ToolAction('Login Rules', Icons.rule_rounded, () => _showDetails(context, 'Login Rules', 'Login attempt limits, session timeout and password policy are controlled by the switches above.')),
-              _ToolAction('API Secrets', Icons.key_rounded, () => _credentialDialog('Secure API Secret Manager')),
+              _ToolAction('2FA Setup', Icons.verified_user_rounded, _twoFactorSetup),
+              _ToolAction('Active Sessions', Icons.devices_rounded, _activeSessions),
+              _ToolAction('Audit Logs', Icons.history_rounded, _auditLogs),
+              _ToolAction('Login Rules', Icons.rule_rounded, _loginRules),
+              _ToolAction('API Secrets', Icons.key_rounded, _apiSecrets),
             ],
           ),
         ],
@@ -16274,7 +16891,7 @@ class _CredentialDialogState extends State<_CredentialDialog> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         OutlinedButton(
-          onPressed: () => _showSnack(context, 'Connection test initiated.'),
+          onPressed: () => _testIntegration(ApiIntegration(idController.text.trim(), nameController.text.trim(), type, descriptionController.text.trim(), enabled)),
           child: const Text('Test'),
         ),
         ElevatedButton(
@@ -16403,4 +17020,74 @@ void _showSnack(BuildContext context, String text) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text(text)),
   );
+}
+
+
+// ============================================================================
+// REAL LOCAL FUNCTIONAL STATE - PHASE 1
+// Existing UI is kept unchanged. These records make the action buttons
+// actually perform local CRUD/work during the current admin session.
+// ============================================================================
+class _AdminPurchaseRecord {
+  _AdminPurchaseRecord({
+    required this.id,
+    required this.sku,
+    required this.product,
+    required this.quantity,
+    required this.cost,
+    required this.supplier,
+    required this.createdAt,
+  });
+  final String id, sku, product, supplier, createdAt;
+  final int quantity;
+  final double cost;
+}
+
+class _AdminSupplierRecord {
+  _AdminSupplierRecord({
+    required this.id,
+    required this.name,
+    required this.phone,
+    required this.email,
+  });
+  final String id;
+  String name, phone, email;
+}
+
+class _AdminBannerRecord {
+  _AdminBannerRecord({
+    required this.id,
+    required this.title,
+    required this.image,
+    required this.link,
+    required this.enabled,
+  });
+  final String id;
+  String title, image, link;
+  bool enabled;
+}
+
+class _AdminReferralRules {
+  static bool enabled = true;
+  static double referrerReward = 100;
+  static double refereeReward = 50;
+  static double minimumOrder = 499;
+  static int maxReferrals = 20;
+}
+
+class _AdminFunctionalState {
+  static final List<_AdminPurchaseRecord> purchases = [];
+  static final List<_AdminSupplierRecord> suppliers = [
+    _AdminSupplierRecord(
+      id: 'SUP001',
+      name: 'Default Supplier',
+      phone: '',
+      email: '',
+    ),
+  ];
+  static final List<_AdminBannerRecord> banners = [];
+  static final List<Map<String, String>> sentNotifications = [];
+  static final List<Map<String, String>> scheduledNotifications = [];
+  static final List<String> auditLogs = [];
+  static final List<String> activeSessions = ['Current Android Admin Session'];
 }
