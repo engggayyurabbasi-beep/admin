@@ -10975,8 +10975,11 @@ class _VendorQuickAction extends StatelessWidget {
   }
 }
 
+import 'package:flutter/material.dart';
+
 class ResellersModule extends StatefulWidget {
   const ResellersModule({super.key, required this.data});
+
   final KStoreAdminData data;
 
   @override
@@ -10984,95 +10987,735 @@ class ResellersModule extends StatefulWidget {
 }
 
 class _ResellersModuleState extends State<ResellersModule> {
+  final List<_ResellerRecord> _resellers = [
+    _ResellerRecord(
+      id: 'R001',
+      name: 'Mohit Store',
+      email: 'mohit@example.com',
+      phone: '+91 98765 43210',
+      city: 'Agra',
+      status: 'Active',
+      orders: 48,
+      sales: 68450,
+      earnings: 10267.50,
+      wallet: 4250,
+      commission: 15,
+      kyc: 'Verified',
+      store: 'mohit-store',
+    ),
+    _ResellerRecord(
+      id: 'R002',
+      name: 'Ayesha Collection',
+      email: 'ayesha@example.com',
+      phone: '+91 99887 77665',
+      city: 'Delhi',
+      status: 'Active',
+      orders: 31,
+      sales: 42100,
+      earnings: 6315,
+      wallet: 2180,
+      commission: 15,
+      kyc: 'Pending',
+      store: 'ayesha-collection',
+    ),
+  ];
+
+  int _section = 0;
+  String _search = '';
+  String _statusFilter = 'All';
+
   @override
   Widget build(BuildContext context) {
-    return _PartnerModule(
-      title: 'Resellers',
-      subtitle: 'Create, edit, pause, activate, block and delete reseller accounts',
-      icon: Icons.groups_rounded,
-      color: const Color(0xFFFF3E7D),
-      items: widget.data.resellers,
-      onAdd: () => _dialog(),
-      onEdit: (p) => _dialog(item: p),
-      onDelete: (p) => setState(() => widget.data.resellers.remove(p)),
-      onToggle: (p, v) => setState(() => p.enabled = v),
+    final filtered = _resellers.where((r) {
+      final q = _search.toLowerCase().trim();
+      final matchesSearch = q.isEmpty ||
+          r.name.toLowerCase().contains(q) ||
+          r.id.toLowerCase().contains(q) ||
+          r.email.toLowerCase().contains(q) ||
+          r.phone.contains(q);
+      final matchesStatus =
+          _statusFilter == 'All' || r.status == _statusFilter;
+      return matchesSearch && matchesStatus;
+    }).toList();
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F7FB),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _header(context),
+            Expanded(
+              child: Row(
+                children: [
+                  _sideMenu(),
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      child: _content(filtered),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: _section == 0 || _section == 1
+          ? FloatingActionButton.extended(
+              onPressed: () => _showResellerForm(),
+              icon: const Icon(Icons.person_add_alt_1),
+              label: const Text('Add Reseller'),
+            )
+          : null,
     );
   }
 
-  Future<void> _dialog({PartnerAdmin? item}) async {
-    final id = TextEditingController(text: item?.id ?? 'R${DateTime.now().millisecondsSinceEpoch}');
-    final name = TextEditingController(text: item?.name ?? '');
-    final email = TextEditingController(text: item?.email ?? '');
-    await showDialog(
-      context: context,
-      builder: (context) => _FormDialog(
-        title: item == null ? 'Add Reseller' : 'Edit Reseller',
-        children: [_Field(id, 'Reseller ID'), _Field(name, 'Name'), _Field(email, 'Email')],
-        onSave: () {
-          setState(() {
-            if (item == null) {
-              widget.data.resellers.add(PartnerAdmin(id.text, name.text, email.text, 'Active', true));
-            } else {
-              item.id = id.text;
-              item.name = name.text;
-              item.email = email.text;
-            }
-          });
-          Navigator.pop(context);
-        },
+  Widget _header(BuildContext context) {
+    return Container(
+      height: 76,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      decoration: const BoxDecoration(color: Colors.white),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              gradient: const LinearGradient(
+                colors: [Color(0xFFE91E63), Color(0xFF7B1FA2)],
+              ),
+            ),
+            child: const Icon(Icons.groups_rounded, color: Colors.white),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Resellers',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+                Text(
+                  'Manage your reseller network',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Notifications',
+            onPressed: () => _toast('No new reseller notifications'),
+            icon: const Badge(
+              label: Text('5'),
+              child: Icon(Icons.notifications_none_rounded),
+            ),
+          ),
+          const SizedBox(width: 4),
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: Color(0xFFFCE4EC),
+            child: Icon(Icons.person, color: Color(0xFFC2185B)),
+          ),
+        ],
       ),
     );
-    id.dispose();
-    name.dispose();
-    email.dispose();
   }
-}
 
-class _PartnerModule extends StatelessWidget {
-  const _PartnerModule({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.color,
-    required this.items,
-    required this.onAdd,
-    required this.onEdit,
-    required this.onDelete,
-    required this.onToggle,
-  });
+  Widget _sideMenu() {
+    final items = <Map<String, dynamic>>[
+      {'i': Icons.dashboard_rounded, 't': 'Dashboard'},
+      {'i': Icons.groups_rounded, 't': 'Resellers'},
+      {'i': Icons.storefront_rounded, 't': 'My Stores'},
+      {'i': Icons.shopping_bag_rounded, 't': 'Orders'},
+      {'i': Icons.inventory_2_rounded, 't': 'Products'},
+      {'i': Icons.people_alt_rounded, 't': 'Customers'},
+      {'i': Icons.account_balance_wallet_rounded, 't': 'Earnings & Wallet'},
+      {'i': Icons.payments_rounded, 't': 'Withdrawals'},
+      {'i': Icons.verified_user_rounded, 't': 'KYC'},
+      {'i': Icons.local_offer_rounded, 't': 'Coupons & Offers'},
+      {'i': Icons.campaign_rounded, 't': 'Marketing'},
+      {'i': Icons.bar_chart_rounded, 't': 'Reports'},
+      {'i': Icons.settings_rounded, 't': 'Settings'},
+    ];
 
-  final String title, subtitle;
-  final IconData icon;
-  final Color color;
-  final List<PartnerAdmin> items;
-  final VoidCallback onAdd;
-  final ValueChanged<PartnerAdmin> onEdit;
-  final ValueChanged<PartnerAdmin> onDelete;
-  final void Function(PartnerAdmin, bool) onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    return _Page(
-      child: Column(
+    return Container(
+      width: 190,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(right: BorderSide(color: Color(0xFFE8EAF0))),
+      ),
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
         children: [
-          _ModuleHeader(
-            title: title,
-            subtitle: subtitle,
-            icon: icon,
-            actions: [_PrimaryButton(label: 'Add ${title.substring(0, title.length - 1)}', icon: Icons.add_rounded, onPressed: onAdd)],
+          for (int i = 0; i < items.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: ListTile(
+                dense: true,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                selected: _section == i,
+                selectedTileColor: const Color(0xFFFCE4EC),
+                leading: Icon(
+                  items[i]['i'] as IconData,
+                  size: 20,
+                  color: _section == i
+                      ? const Color(0xFFC2185B)
+                      : Colors.blueGrey,
+                ),
+                title: Text(
+                  items[i]['t'] as String,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight:
+                        _section == i ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+                onTap: () => setState(() => _section = i),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _content(List<_ResellerRecord> filtered) {
+    switch (_section) {
+      case 0:
+        return _dashboard();
+      case 1:
+        return _resellerList(filtered);
+      case 2:
+        return _stores();
+      case 3:
+        return _orders();
+      case 4:
+        return _products();
+      case 5:
+        return _customers();
+      case 6:
+        return _earnings();
+      case 7:
+        return _withdrawals();
+      case 8:
+        return _kyc();
+      case 9:
+        return _offers();
+      case 10:
+        return _marketing();
+      case 11:
+        return _reports();
+      default:
+        return _settings();
+    }
+  }
+
+  Widget _page(String title, String subtitle, Widget child,
+      {Widget? action}) {
+    return SingleChildScrollView(
+      key: ValueKey(title),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: const TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    Text(subtitle,
+                        style: const TextStyle(
+                            color: Colors.blueGrey, fontSize: 13)),
+                  ],
+                ),
+              ),
+              if (action != null) action,
+            ],
           ),
-          ...items.map(
-            (p) => _AdminListCard(
-              title: '${p.name} • ${p.id}',
-              subtitle: '${p.email} • ${p.status}',
-              icon: icon,
-              color: color,
-              enabled: p.enabled,
-              onToggle: (v) => onToggle(p, v),
-              actions: [
-                _ActionChip(label: 'Edit', icon: Icons.edit_rounded, onTap: () => onEdit(p)),
-                _ActionChip(label: p.enabled ? 'Pause' : 'Activate', icon: Icons.pause_circle_outline_rounded, onTap: () => onToggle(p, !p.enabled)),
-                _ActionChip(label: 'Delete', icon: Icons.delete_outline_rounded, danger: true, onTap: () => onDelete(p)),
+          const SizedBox(height: 18),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _dashboard() {
+    final active = _resellers.where((r) => r.status == 'Active').length;
+    final sales = _resellers.fold<double>(0, (s, r) => s + r.sales);
+    final earnings = _resellers.fold<double>(0, (s, r) => s + r.earnings);
+    final pendingKyc = _resellers.where((r) => r.kyc == 'Pending').length;
+
+    return _page(
+      'Reseller Dashboard',
+      'Overview of reseller growth, sales and payouts',
+      Column(
+        children: [
+          GridView.count(
+            crossAxisCount: MediaQuery.of(context).size.width > 900 ? 4 : 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.65,
+            children: [
+              _metric('Total Resellers', '${_resellers.length}',
+                  Icons.groups_rounded, const Color(0xFF7B1FA2)),
+              _metric('Active Resellers', '$active',
+                  Icons.verified_rounded, const Color(0xFF00897B)),
+              _metric('Total Sales', _money(sales),
+                  Icons.trending_up_rounded, const Color(0xFF1565C0)),
+              _metric('Commission Paid', _money(earnings),
+                  Icons.account_balance_wallet_rounded, const Color(0xFFC2185B)),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _dashboardCard(
+                'Quick Actions',
+                [
+                  _action(Icons.person_add_alt_1, 'Add Reseller',
+                      () => _showResellerForm()),
+                  _action(Icons.payments, 'Withdrawals',
+                      () => setState(() => _section = 7)),
+                  _action(Icons.verified_user, 'Review KYC',
+                      () => setState(() => _section = 8)),
+                  _action(Icons.campaign, 'Marketing',
+                      () => setState(() => _section = 10)),
+                ],
+              )),
+              const SizedBox(width: 12),
+              Expanded(child: _dashboardCard(
+                'Attention Required',
+                [
+                  _notice('Pending KYC applications', '$pendingKyc',
+                      Icons.verified_user_outlined),
+                  _notice('Pending withdrawals', '3',
+                      Icons.payments_outlined),
+                  _notice('Products to promote', '12',
+                      Icons.campaign_outlined),
+                  _notice('Low performing resellers', '2',
+                      Icons.trending_down_rounded),
+                ],
+              )),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _dashboardCard(
+            'Top Resellers',
+            _resellers.take(5).map((r) {
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: const Color(0xFFF3E5F5),
+                  child: Text(r.name.substring(0, 1).toUpperCase()),
+                ),
+                title: Text(r.name,
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: Text('${r.orders} orders • ${r.city}'),
+                trailing: Text(_money(r.sales),
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
+                onTap: () => _showDetails(r),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _resellerList(List<_ResellerRecord> filtered) {
+    return _page(
+      'All Resellers',
+      'Create, edit, activate, pause, block and manage reseller accounts',
+      Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search by name, ID, email or mobile...',
+                    prefixIcon: const Icon(Icons.search),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  onChanged: (v) => setState(() => _search = v),
+                ),
+              ),
+              const SizedBox(width: 10),
+              DropdownButton<String>(
+                value: _statusFilter,
+                items: const [
+                  DropdownMenuItem(value: 'All', child: Text('All')),
+                  DropdownMenuItem(value: 'Active', child: Text('Active')),
+                  DropdownMenuItem(value: 'Paused', child: Text('Paused')),
+                  DropdownMenuItem(value: 'Blocked', child: Text('Blocked')),
+                ],
+                onChanged: (v) => setState(() => _statusFilter = v ?? 'All'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (filtered.isEmpty)
+            _empty('No resellers found', 'Try another search or add a new reseller.')
+          else
+            ...filtered.map(_resellerCard),
+        ],
+      ),
+      action: ElevatedButton.icon(
+        onPressed: () => _showResellerForm(),
+        icon: const Icon(Icons.add),
+        label: const Text('Add Reseller'),
+      ),
+    );
+  }
+
+  Widget _resellerCard(_ResellerRecord r) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.all(15),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor: const Color(0xFFF3E5F5),
+                  child: Text(r.name.substring(0, 1).toUpperCase(),
+                      style: const TextStyle(
+                          color: Color(0xFF7B1FA2),
+                          fontWeight: FontWeight.w800)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${r.name} • ${r.id}',
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 3),
+                      Text('${r.email} • ${r.phone}',
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.blueGrey)),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          _status(r.status),
+                          const SizedBox(width: 7),
+                          _status('KYC: ${r.kyc}'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: r.status == 'Active',
+                  onChanged: (v) {
+                    setState(() => r.status = v ? 'Active' : 'Paused');
+                  },
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                _smallStat('Orders', '${r.orders}'),
+                _smallStat('Sales', _money(r.sales)),
+                _smallStat('Earnings', _money(r.earnings)),
+                _smallStat('Wallet', _money(r.wallet)),
+                _smallStat('Commission', '${r.commission}%'),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _showDetails(r),
+                  icon: const Icon(Icons.visibility_outlined, size: 18),
+                  label: const Text('View'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () => _showResellerForm(existing: r),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('Edit'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () => _confirmDelete(r),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Delete'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _stores() => _page(
+        'White-Label Stores',
+        'Manage reseller storefronts and sharing links',
+        Column(children: [
+          _infoCard(Icons.storefront_rounded, 'Reseller Storefronts',
+              'Each approved reseller can have a branded store, referral link and selected product catalogue.'),
+          const SizedBox(height: 12),
+          ..._resellers.map((r) => Card(
+                elevation: 0,
+                child: ListTile(
+                  leading: const Icon(Icons.storefront),
+                  title: Text(r.name),
+                  subtitle: Text('k-store.in/r/${r.store}'),
+                  trailing: OutlinedButton(
+                    onPressed: () => _toast('Store settings opened for ${r.name}'),
+                    child: const Text('Manage'),
+                  ),
+                ),
+              )),
+        ]),
+      );
+
+  Widget _orders() => _page(
+        'Reseller Orders',
+        'Monitor orders generated by reseller stores',
+        _tableCard(
+          headers: const ['Order', 'Reseller', 'Customer', 'Amount', 'Status'],
+          rows: const [
+            ['#KS-10482', 'Mohit Store', 'Rahul Sharma', '₹1,299', 'Delivered'],
+            ['#KS-10476', 'Ayesha Collection', 'Neha Khan', '₹899', 'Shipped'],
+            ['#KS-10465', 'Mohit Store', 'Amit Singh', '₹2,450', 'Processing'],
+          ],
+        ),
+      );
+
+  Widget _products() => _page(
+        'Reseller Products',
+        'Control products available to the reseller network',
+        Column(children: [
+          _infoCard(Icons.inventory_2_rounded, 'Product Access',
+              'Enable or disable products for resellers and configure reseller pricing or commission.'),
+          const SizedBox(height: 12),
+          _tableCard(
+            headers: const ['Product', 'MRP', 'Reseller Price', 'Commission', 'Status'],
+            rows: const [
+              ['Herbal Product A', '₹599', '₹499', '₹75', 'Enabled'],
+              ['Herbal Product B', '₹899', '₹749', '₹112', 'Enabled'],
+              ['Premium Product C', '₹1,499', '₹1,249', '₹187', 'Enabled'],
+            ],
+          ),
+        ]),
+      );
+
+  Widget _customers() => _page(
+        'Reseller Customers',
+        'Customers acquired through reseller channels',
+        _tableCard(
+          headers: const ['Customer', 'Reseller', 'Orders', 'Total Spent', 'Last Order'],
+          rows: const [
+            ['Rahul Sharma', 'Mohit Store', '6', '₹5,840', 'Today'],
+            ['Neha Khan', 'Ayesha Collection', '4', '₹3,250', 'Yesterday'],
+            ['Amit Singh', 'Mohit Store', '3', '₹4,120', '2 days ago'],
+          ],
+        ),
+      );
+
+  Widget _earnings() => _page(
+        'Earnings & Wallet',
+        'Commission, wallet balance and reseller payouts',
+        Column(children: [
+          GridView.count(
+            crossAxisCount: 3,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 2.1,
+            children: [
+              _metric('Total Commission', '₹16,582',
+                  Icons.payments_outlined, const Color(0xFF00897B)),
+              _metric('Pending Commission', '₹3,840',
+                  Icons.hourglass_bottom, const Color(0xFFEF6C00)),
+              _metric('Wallet Balance', '₹6,430',
+                  Icons.account_balance_wallet, const Color(0xFF7B1FA2)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _tableCard(
+            headers: const ['Reseller', 'Sales', 'Rate', 'Commission', 'Wallet'],
+            rows: _resellers.map((r) => [
+              r.name,
+              _money(r.sales),
+              '${r.commission}%',
+              _money(r.earnings),
+              _money(r.wallet),
+            ]).toList(),
+          ),
+        ]),
+      );
+
+  Widget _withdrawals() => _page(
+        'Withdrawal Requests',
+        'Review and process reseller payout requests',
+        Column(children: [
+          _infoCard(Icons.payments_rounded, 'Payout Control',
+              'Verify requests, review bank/UPI details and mark approved payouts as paid.'),
+          const SizedBox(height: 12),
+          _tableCard(
+            headers: const ['Request', 'Reseller', 'Amount', 'Method', 'Status'],
+            rows: const [
+              ['WD-1008', 'Mohit Store', '₹2,500', 'UPI', 'Pending'],
+              ['WD-1007', 'Ayesha Collection', '₹1,800', 'Bank', 'Approved'],
+              ['WD-1006', 'Rahul Mart', '₹3,200', 'UPI', 'Paid'],
+            ],
+          ),
+        ]),
+      );
+
+  Widget _kyc() => _page(
+        'KYC Verification',
+        'Verify reseller identity and payout eligibility',
+        _tableCard(
+          headers: const ['Reseller', 'Documents', 'Status', 'Action'],
+          rows: _resellers.map((r) => [
+            r.name,
+            'PAN • Bank • ID',
+            r.kyc,
+            r.kyc == 'Verified' ? 'Verified' : 'Review',
+          ]).toList(),
+        ),
+      );
+
+  Widget _offers() => _page(
+        'Coupons & Offers',
+        'Create reseller incentives and customer promotions',
+        Column(children: [
+          _infoCard(Icons.local_offer_rounded, 'Reseller Campaigns',
+              'Create product coupons, extra commission campaigns, first-order offers and seasonal incentives.'),
+          const SizedBox(height: 12),
+          _tableCard(
+            headers: const ['Campaign', 'Code', 'Benefit', 'Validity', 'Status'],
+            rows: const [
+              ['Welcome', 'WELCOME100', '₹100 Off', '30 Days', 'Active'],
+              ['Extra Commission', 'SELLMORE15', '+5% Commission', '15 Days', 'Active'],
+              ['Festival', 'FESTIVE200', '₹200 Off', '10 Days', 'Scheduled'],
+            ],
+          ),
+        ]),
+      );
+
+  Widget _marketing() => _page(
+        'Marketing Tools',
+        'Give resellers ready-to-share content and product links',
+        GridView.count(
+          crossAxisCount: MediaQuery.of(context).size.width > 900 ? 4 : 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          children: [
+            _tool(Icons.image_rounded, 'Product Posters',
+                'Create shareable product creatives'),
+            _tool(Icons.share_rounded, 'Share Links',
+                'Copy reseller product/store links'),
+            _tool(Icons.video_library_rounded, 'Product Videos',
+                'Manage promotional videos'),
+            _tool(Icons.campaign_rounded, 'Campaigns',
+                'Run reseller marketing campaigns'),
+          ],
+        ),
+      );
+
+  Widget _reports() => _page(
+        'Reseller Reports',
+        'Sales, performance, commission and growth analytics',
+        Column(children: [
+          _tableCard(
+            headers: const ['Metric', 'This Month', 'Last Month', 'Change'],
+            rows: const [
+              ['Orders', '186', '149', '+24.8%'],
+              ['Sales', '₹2,48,650', '₹2,04,200', '+21.8%'],
+              ['Commission', '₹36,920', '₹30,410', '+21.4%'],
+              ['New Resellers', '18', '11', '+63.6%'],
+            ],
+          ),
+          const SizedBox(height: 12),
+          _infoCard(Icons.download_rounded, 'Export Reports',
+              'Export reseller sales, commission, orders and payout reports for accounting.'),
+        ]),
+      );
+
+  Widget _settings() => _page(
+        'Reseller Settings',
+        'Configure rules for the reseller program',
+        Column(children: [
+          _setting('Reseller Approval', 'Manual approval required', true),
+          _setting('Default Commission', '15%', true),
+          _setting('Minimum Withdrawal', '₹500', false),
+          _setting('KYC Required', 'Required before withdrawal', true),
+          _setting('White-Label Store', 'Enabled', true),
+          _setting('Allow Price Override', 'Admin controlled', false),
+          _setting('Auto Commission on Delivery', 'Credit after delivery', true),
+        ]),
+      );
+
+  Widget _metric(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: const Color(0xFFE9EAF0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: color.withOpacity(.10),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 11, color: Colors.blueGrey)),
+                const SizedBox(height: 3),
+                Text(value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.w800)),
               ],
             ),
           ),
@@ -11080,11 +11723,475 @@ class _PartnerModule extends StatelessWidget {
       ),
     );
   }
+
+  Widget _dashboardCard(String title, List<Widget> children) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title,
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 10),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _action(IconData icon, String title, VoidCallback onTap) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        backgroundColor: const Color(0xFFFCE4EC),
+        child: Icon(icon, color: const Color(0xFFC2185B)),
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
+    );
+  }
+
+  Widget _notice(String title, String value, IconData icon) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: const Color(0xFF7B1FA2)),
+      title: Text(title, style: const TextStyle(fontSize: 12)),
+      trailing: Text(value,
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+    );
+  }
+
+  Widget _smallStat(String title, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8FA),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(color: Colors.blueGrey, fontSize: 12),
+          children: [
+            TextSpan(text: '$title: '),
+            TextSpan(
+              text: value,
+              style: const TextStyle(
+                  color: Colors.black, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _status(String value) {
+    final lower = value.toLowerCase();
+    final good = lower.contains('active') ||
+        lower.contains('verified') ||
+        lower.contains('enabled');
+    final warning = lower.contains('pending') || lower.contains('paused');
+    final color = good
+        ? const Color(0xFF00897B)
+        : warning
+            ? const Color(0xFFEF6C00)
+            : const Color(0xFFC62828);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.10),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(value,
+          style: TextStyle(
+              color: color, fontSize: 10, fontWeight: FontWeight.w700)),
+    );
+  }
+
+  Widget _infoCard(IconData icon, String title, String text) {
+    return Card(
+      elevation: 0,
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: const Color(0xFFF3E5F5),
+          child: Icon(icon, color: const Color(0xFF7B1FA2)),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(text),
+        ),
+      ),
+    );
+  }
+
+  Widget _tool(IconData icon, String title, String subtitle) {
+    return Card(
+      elevation: 0,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _toast('$title opened'),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircleAvatar(
+                radius: 26,
+                backgroundColor: const Color(0xFFFCE4EC),
+                child: Icon(icon, color: const Color(0xFFC2185B)),
+              ),
+              const SizedBox(height: 12),
+              Text(title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text(subtitle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 11, color: Colors.blueGrey)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _setting(String title, String subtitle, bool value) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 9),
+      child: SwitchListTile(
+        value: value,
+        onChanged: (_) => _toast('$title setting updated'),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: Text(subtitle),
+      ),
+    );
+  }
+
+  Widget _tableCard({
+    required List<String> headers,
+    required List<List<String>> rows,
+  }) {
+    return Card(
+      elevation: 0,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          columns: headers
+              .map((h) => DataColumn(
+                    label: Text(h,
+                        style: const TextStyle(fontWeight: FontWeight.w800)),
+                  ))
+              .toList(),
+          rows: rows
+              .map((row) => DataRow(
+                    cells: row.map((v) => DataCell(Text(v))).toList(),
+                  ))
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _empty(String title, String subtitle) {
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(35),
+        child: Center(
+          child: Column(
+            children: [
+              const Icon(Icons.search_off_rounded,
+                  size: 50, color: Colors.blueGrey),
+              const SizedBox(height: 10),
+              Text(title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 16)),
+              Text(subtitle,
+                  style: const TextStyle(color: Colors.blueGrey)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showResellerForm({_ResellerRecord? existing}) {
+    final id = TextEditingController(
+        text: existing?.id ?? 'R${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}');
+    final name = TextEditingController(text: existing?.name ?? '');
+    final email = TextEditingController(text: existing?.email ?? '');
+    final phone = TextEditingController(text: existing?.phone ?? '');
+    final city = TextEditingController(text: existing?.city ?? '');
+    final commission =
+        TextEditingController(text: '${existing?.commission ?? 15}');
+    final store =
+        TextEditingController(text: existing?.store ?? '');
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        String status = existing?.status ?? 'Active';
+        String kyc = existing?.kyc ?? 'Pending';
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(existing == null ? 'Add Reseller' : 'Edit Reseller'),
+              content: SizedBox(
+                width: 520,
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      _formField(id, 'Reseller ID', readOnly: true),
+                      _formField(name, 'Full Name'),
+                      _formField(email, 'Email', keyboard: TextInputType.emailAddress),
+                      _formField(phone, 'Mobile Number',
+                          keyboard: TextInputType.phone),
+                      _formField(city, 'City'),
+                      _formField(store, 'Store Slug'),
+                      _formField(commission, 'Commission %',
+                          keyboard: const TextInputType.numberWithOptions(
+                              decimal: true)),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: status,
+                        decoration: const InputDecoration(labelText: 'Account Status'),
+                        items: const [
+                          DropdownMenuItem(value: 'Active', child: Text('Active')),
+                          DropdownMenuItem(value: 'Paused', child: Text('Paused')),
+                          DropdownMenuItem(value: 'Blocked', child: Text('Blocked')),
+                        ],
+                        onChanged: (v) =>
+                            setDialogState(() => status = v ?? status),
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        value: kyc,
+                        decoration: const InputDecoration(labelText: 'KYC Status'),
+                        items: const [
+                          DropdownMenuItem(value: 'Pending', child: Text('Pending')),
+                          DropdownMenuItem(value: 'Verified', child: Text('Verified')),
+                          DropdownMenuItem(value: 'Rejected', child: Text('Rejected')),
+                        ],
+                        onChanged: (v) => setDialogState(() => kyc = v ?? kyc),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Cancel')),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    if (name.text.trim().isEmpty || email.text.trim().isEmpty) {
+                      _toast('Name and email are required');
+                      return;
+                    }
+                    final rate = double.tryParse(commission.text) ?? 15;
+                    setState(() {
+                      if (existing == null) {
+                        _resellers.add(_ResellerRecord(
+                          id: id.text.trim(),
+                          name: name.text.trim(),
+                          email: email.text.trim(),
+                          phone: phone.text.trim(),
+                          city: city.text.trim(),
+                          status: status,
+                          orders: 0,
+                          sales: 0,
+                          earnings: 0,
+                          wallet: 0,
+                          commission: rate,
+                          kyc: kyc,
+                          store: store.text.trim().isEmpty
+                              ? name.text.toLowerCase().replaceAll(' ', '-')
+                              : store.text.trim(),
+                        ));
+                      } else {
+                        existing.name = name.text.trim();
+                        existing.email = email.text.trim();
+                        existing.phone = phone.text.trim();
+                        existing.city = city.text.trim();
+                        existing.status = status;
+                        existing.kyc = kyc;
+                        existing.commission = rate;
+                        existing.store = store.text.trim();
+                      }
+                    });
+                    Navigator.pop(dialogContext);
+                    _toast(existing == null
+                        ? 'Reseller created successfully'
+                        : 'Reseller updated successfully');
+                  },
+                  icon: const Icon(Icons.save_outlined),
+                  label: Text(existing == null ? 'Create Reseller' : 'Save Changes'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _formField(
+    TextEditingController controller,
+    String label, {
+    TextInputType? keyboard,
+    bool readOnly = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboard,
+        readOnly: readOnly,
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+    );
+  }
+
+  void _showDetails(_ResellerRecord r) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(r.name),
+        content: SizedBox(
+          width: 500,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _detail('Reseller ID', r.id),
+                _detail('Email', r.email),
+                _detail('Mobile', r.phone),
+                _detail('City', r.city),
+                _detail('Status', r.status),
+                _detail('KYC', r.kyc),
+                _detail('Store', r.store),
+                _detail('Orders', '${r.orders}'),
+                _detail('Sales', _money(r.sales)),
+                _detail('Commission', '${r.commission}%'),
+                _detail('Total Earnings', _money(r.earnings)),
+                _detail('Wallet Balance', _money(r.wallet)),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showResellerForm(existing: r);
+            },
+            child: const Text('Edit'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detail(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 135,
+            child: Text(label,
+                style: const TextStyle(
+                    color: Colors.blueGrey, fontWeight: FontWeight.w600)),
+          ),
+          Expanded(
+            child: Text(value,
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(_ResellerRecord r) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete reseller?'),
+        content: Text(
+            'This will remove ${r.name} from the current admin session.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              setState(() => _resellers.remove(r));
+              Navigator.pop(context);
+              _toast('Reseller deleted');
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _money(double value) {
+    return '₹${value.toStringAsFixed(0)}';
+  }
+
+  void _toast(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 }
 
-// -----------------------------------------------------------------------------
-// AFFILIATES
-// -----------------------------------------------------------------------------
+class _ResellerRecord {
+  _ResellerRecord({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.phone,
+    required this.city,
+    required this.status,
+    required this.orders,
+    required this.sales,
+    required this.earnings,
+    required this.wallet,
+    required this.commission,
+    required this.kyc,
+    required this.store,
+  });
+
+  String id;
+  String name;
+  String email;
+  String phone;
+  String city;
+  String status;
+  int orders;
+  double sales;
+  double earnings;
+  double wallet;
+  double commission;
+  String kyc;
+  String store;
+}
 
 class AffiliatesModule extends StatefulWidget {
   const AffiliatesModule({super.key, required this.data});
