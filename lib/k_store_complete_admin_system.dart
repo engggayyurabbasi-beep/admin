@@ -2127,8 +2127,70 @@ class _CategoriesModuleState extends State<CategoriesModule> {
 // ORDERS
 // -----------------------------------------------------------------------------
 
+/// Complete Orders module for K - Store Admin Panel.
+///
+/// IMPORTANT:
+/// This file is designed to replace the existing OrdersModule section in
+/// k_store_complete_admin_system.dart. It expects these existing public types
+/// from that file:
+///
+///   KStoreAdminData
+///   OrderAdmin
+///
+/// It also expects OrderAdmin to expose mutable:
+///   id, customer, amount, status, payment
+///
+/// The KIRZ order number generator is included in this file so the Orders
+/// module and numbering system are installed together.
+///
+/// Production note:
+/// For a real multi-device store, the final order number must be generated
+/// atomically by the backend/database. The local generator is for the current
+/// local/in-memory Admin Panel.
+
+class KirzOrderNumber {
+  static const String prefix = 'KIRZ';
+
+  static String fromNumber(int number) {
+    if (number < 1) {
+      throw ArgumentError('Order number must be greater than 0.');
+    }
+    return '$prefix${number.toString().padLeft(6, '0')}';
+  }
+
+  static int? parse(String orderNumber) {
+    final value = orderNumber.trim().toUpperCase();
+    if (!value.startsWith(prefix)) return null;
+
+    final numericPart = value.substring(prefix.length);
+    if (numericPart.length != 6) return null;
+
+    return int.tryParse(numericPart);
+  }
+
+  static String nextFrom(Iterable<String> existingOrderNumbers) {
+    var highest = 0;
+
+    for (final orderNumber in existingOrderNumbers) {
+      final number = parse(orderNumber);
+      if (number != null && number > highest) {
+        highest = number;
+      }
+    }
+
+    return fromNumber(highest + 1);
+  }
+}
+
+class KirzOrderSequence {
+  String next(Iterable<String> existingOrderNumbers) {
+    return KirzOrderNumber.nextFrom(existingOrderNumbers);
+  }
+}
+
 class OrdersModule extends StatefulWidget {
   const OrdersModule({super.key, required this.data});
+
   final KStoreAdminData data;
 
   @override
@@ -2136,42 +2198,388 @@ class OrdersModule extends StatefulWidget {
 }
 
 class _OrdersModuleState extends State<OrdersModule> {
-  String search = '';
-  String filter = 'All';
+  final _searchController = TextEditingController();
+
+  String _statusFilter = 'All';
+  String _paymentFilter = 'All';
+  String _dateFilter = 'All';
+  String _sort = 'Newest';
+
+  final Set<String> _selectedOrders = <String>{};
+
+  static const _statuses = <String>[
+    'All',
+    'Pending',
+    'Confirmed',
+    'Processing',
+    'Packed',
+    'Shipped',
+    'Out for Delivery',
+    'Delivered',
+    'Cancelled',
+    'Return Requested',
+    'Returned',
+    'Refund Pending',
+    'Refunded',
+    'Payment Failed',
+  ];
+
+  static const _payments = <String>[
+    'All',
+    'Paid',
+    'COD',
+    'Pending',
+    'Refunded',
+  ];
 
   @override
-  Widget build(BuildContext context) {
-    final rows = widget.data.orders.where((o) {
-      final matches = '${o.id} ${o.customer}'.toLowerCase().contains(search.toLowerCase());
-      return matches && (filter == 'All' || o.status == filter);
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<OrderAdmin> get _filteredOrders {
+    final query = _searchController.text.trim().toLowerCase();
+
+    final result = widget.data.orders.where((order) {
+      final matchesSearch = query.isEmpty ||
+          order.id.toLowerCase().contains(query) ||
+          order.customer.toLowerCase().contains(query);
+
+      final matchesStatus =
+          _statusFilter == 'All' || order.status == _statusFilter;
+
+      final payment = order.payment.toLowerCase();
+      final matchesPayment = _paymentFilter == 'All' ||
+          (_paymentFilter == 'Paid' && payment == 'paid') ||
+          (_paymentFilter == 'COD' && payment == 'cod') ||
+          (_paymentFilter == 'Pending' && payment == 'pending') ||
+          (_paymentFilter == 'Refunded' && payment == 'refunded');
+
+      return matchesSearch && matchesStatus && matchesPayment;
     }).toList();
 
-    return _Page(
-      child: Column(
-        children: [
-          _ModuleHeader(
-            title: 'Orders',
-            subtitle: 'View, update, cancel, refund and track orders',
-            icon: Icons.shopping_cart_rounded,
+    if (_sort == 'Highest Value') {
+      result.sort((a, b) => b.amount.compareTo(a.amount));
+    } else if (_sort == 'Lowest Value') {
+      result.sort((a, b) => a.amount.compareTo(b.amount));
+    }
+
+    return result;
+  }
+
+  int _countByStatus(String status) {
+    if (status == 'All') return widget.data.orders.length;
+    return widget.data.orders.where((o) => o.status == status).length;
+  }
+
+  double get _totalRevenue =>
+      widget.data.orders.fold<double>(0, (sum, order) => sum + order.amount);
+
+  String _nextOrderNumber() {
+    return KirzOrderNumber.nextFrom(
+      widget.data.orders.map((order) => order.id),
+    );
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _createManualOrder() {
+    final name = TextEditingController();
+    final amount = TextEditingController();
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Create Manual Order'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'New Order Number: ${_nextOrderNumber()}',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: name,
+                decoration: const InputDecoration(
+                  labelText: 'Customer Name',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: amount,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Order Amount',
+                  prefixText: '₹ ',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
           ),
-          _SearchBox(hint: 'Search Order ID or customer', onChanged: (v) => setState(() => search = v)),
-          const SizedBox(height: 10),
-          _FilterBar(
-            value: filter,
-            values: const ['All', 'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'],
-            onChanged: (v) => setState(() => filter = v),
-          ),
-          const SizedBox(height: 10),
-          ...rows.map(
-            (o) => _AdminListCard(
-              title: '${o.id} • ${o.customer}',
-              subtitle: '₹${o.amount.toStringAsFixed(0)} • ${o.payment} • ${o.status}',
-              icon: Icons.shopping_bag_rounded,
-              color: const Color(0xFF16C96A),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final customer = name.text.trim();
+                final orderAmount = double.tryParse(amount.text.trim());
+
+                if (customer.isEmpty || orderAmount == null) {
+                  _showMessage('Please enter customer name and valid amount.');
+                  return;
+                }
+
+                final orderNumber = _nextOrderNumber();
+
+                setState(() {
+                  widget.data.orders.add(
+                    OrderAdmin(
+                      orderNumber,
+                      customer,
+                      orderAmount,
+                      'Pending',
+                      'Pending',
+                    ),
+                  );
+                });
+
+                Navigator.pop(dialogContext);
+                _showMessage('$orderNumber created successfully.');
+              },
+              child: const Text('Create Order'),
+            ),
+          ],
+        );
+      },
+    ).then((_) {
+      name.dispose();
+      amount.dispose();
+    });
+  }
+
+  void _updateStatus(OrderAdmin order) {
+    String selected = order.status;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            return AlertDialog(
+              title: Text('Update ${order.id}'),
+              content: DropdownButtonFormField<String>(
+                value: _statuses.contains(selected) ? selected : 'Pending',
+                decoration: const InputDecoration(
+                  labelText: 'Order Status',
+                  border: OutlineInputBorder(),
+                ),
+                items: _statuses
+                    .where((s) => s != 'All')
+                    .map(
+                      (status) => DropdownMenuItem(
+                        value: status,
+                        child: Text(status),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setLocalState(() => selected = value);
+                  }
+                },
+              ),
               actions: [
-                _ActionChip(label: 'Status', icon: Icons.sync_rounded, onTap: () => _statusDialog(o)),
-                _ActionChip(label: 'Details', icon: Icons.visibility_outlined, onTap: () => _showDetails(context, 'Order ${o.id}', '${o.customer}\n₹${o.amount}\n${o.status}\n${o.payment}')),
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    setState(() => order.status = selected);
+                    Navigator.pop(dialogContext);
+                    _showMessage('${order.id} updated to $selected.');
+                  },
+                  child: const Text('Save'),
+                ),
               ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showDetails(OrderAdmin order) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: .86,
+            minChildSize: .55,
+            maxChildSize: .95,
+            builder: (context, controller) {
+              return ListView(
+                controller: controller,
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 30),
+                children: [
+                  Text(
+                    order.id,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    order.customer,
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
+                  const SizedBox(height: 18),
+                  _detailCard(
+                    title: 'Order Summary',
+                    children: [
+                      _detailRow('Order Number', order.id),
+                      _detailRow('Customer', order.customer),
+                      _detailRow(
+                        'Order Amount',
+                        '₹${order.amount.toStringAsFixed(0)}',
+                      ),
+                      _detailRow('Payment', order.payment),
+                      _detailRow('Status', order.status),
+                    ],
+                  ),
+                  _detailCard(
+                    title: 'Order Status Timeline',
+                    children: [
+                      _timeline('Order Placed', true),
+                      _timeline(
+                        'Payment Confirmed',
+                        order.payment.toLowerCase() == 'paid',
+                      ),
+                      _timeline(
+                        'Processing',
+                        _statusReached(order.status, [
+                          'Processing',
+                          'Packed',
+                          'Shipped',
+                          'Out for Delivery',
+                          'Delivered',
+                        ]),
+                      ),
+                      _timeline(
+                        'Shipped',
+                        _statusReached(order.status, [
+                          'Shipped',
+                          'Out for Delivery',
+                          'Delivered',
+                        ]),
+                      ),
+                      _timeline(
+                        'Delivered',
+                        order.status == 'Delivered',
+                      ),
+                    ],
+                  ),
+                  _detailCard(
+                    title: 'Shipping & Tracking',
+                    children: [
+                      _detailRow('Courier', 'Not assigned'),
+                      _detailRow('AWB', 'Not generated'),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: () => _showMessage(
+                          'Courier tracking will be connected with Shiprocket/Shipmojo.',
+                        ),
+                        icon: const Icon(Icons.local_shipping_outlined),
+                        label: const Text('Track Shipment'),
+                      ),
+                    ],
+                  ),
+                  _detailCard(
+                    title: 'Order Actions',
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () => _updateStatus(order),
+                            icon: const Icon(Icons.sync_rounded),
+                            label: const Text('Update Status'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => _showMessage(
+                              'Invoice generation will be connected.',
+                            ),
+                            icon: const Icon(Icons.receipt_long_outlined),
+                            label: const Text('Invoice'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => _showMessage(
+                              'Refund workflow will be connected.',
+                            ),
+                            icon: const Icon(Icons.currency_rupee_rounded),
+                            label: const Text('Refund'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => _showMessage(
+                              'Return workflow will be connected.',
+                            ),
+                            icon: const Icon(Icons.assignment_return_outlined),
+                            label: const Text('Return'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  bool _statusReached(String current, List<String> statuses) {
+    final index = statuses.indexOf(current);
+    return index >= 0 || current == 'Delivered';
+  }
+
+  Widget _timeline(String title, bool completed) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Icon(
+            completed ? Icons.check_circle : Icons.radio_button_unchecked,
+            color: completed ? const Color(0xFF18B979) : Colors.grey,
+          ),
+          const SizedBox(width: 10),
+          Text(
+            title,
+            style: TextStyle(
+              fontWeight: completed ? FontWeight.w700 : FontWeight.w500,
+              color: completed ? Colors.black87 : Colors.grey.shade600,
             ),
           ),
         ],
@@ -2179,25 +2587,591 @@ class _OrdersModuleState extends State<OrdersModule> {
     );
   }
 
-  Future<void> _statusDialog(OrderAdmin o) async {
-    String value = o.status;
-    await showDialog(
+  Widget _detailCard({
+    required String title,
+    required List<Widget> children,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8F9),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF0E0E5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 125,
+            child: Text(
+              label,
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryCard(
+    String title,
+    String value,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 88),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFF0E2E6)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: const Color(0xFFE91E63), size: 22),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _orderCard(OrderAdmin order) {
+    final selected = _selectedOrders.contains(order.id);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF5F7),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFF0E1E5)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Checkbox(
+                value: selected,
+                activeColor: const Color(0xFFE91E63),
+                onChanged: (value) {
+                  setState(() {
+                    if (value == true) {
+                      _selectedOrders.add(order.id);
+                    } else {
+                      _selectedOrders.remove(order.id);
+                    }
+                  });
+                },
+              ),
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F7EF),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.shopping_bag_rounded,
+                  color: Color(0xFF18B979),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${order.id} • ${order.customer}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '₹${order.amount.toStringAsFixed(0)} • ${order.payment} • ${order.status}',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _updateStatus(order),
+                  icon: const Icon(Icons.sync_rounded, size: 18),
+                  label: const Text('Status'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _showDetails(order),
+                  icon: const Icon(Icons.visibility_outlined, size: 18),
+                  label: const Text('Details'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'More',
+                onPressed: () => _showOrderMenu(order),
+                icon: const Icon(Icons.more_vert_rounded),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showOrderMenu(OrderAdmin order) {
+    showModalBottomSheet<void>(
       context: context,
-      builder: (context) => _ChoiceDialog(
-        title: 'Order Status',
-        value: value,
-        choices: const ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'],
-        onSave: (v) {
-          setState(() => o.status = v);
-          Navigator.pop(context);
-        },
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.local_shipping_outlined),
+                title: const Text('Track Order'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showMessage('Tracking will be connected to courier API.');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.receipt_long_outlined),
+                title: const Text('View Invoice'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showMessage('Invoice screen will be connected.');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.cancel_outlined),
+                title: const Text('Cancel Order'),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() => order.status = 'Cancelled');
+                  _showMessage('${order.id} cancelled.');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('Delete Demo Order'),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() => widget.data.orders.remove(order));
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _applyBulkStatus() {
+    if (_selectedOrders.isEmpty) {
+      _showMessage('Select at least one order first.');
+      return;
+    }
+
+    String selected = 'Processing';
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('Update ${_selectedOrders.length} Orders'),
+          content: DropdownButtonFormField<String>(
+            value: selected,
+            items: _statuses
+                .where((s) => s != 'All')
+                .map(
+                  (s) => DropdownMenuItem(
+                    value: s,
+                    child: Text(s),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value != null) selected = value;
+            },
+            decoration: const InputDecoration(
+              labelText: 'New Status',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                setState(() {
+                  for (final order in widget.data.orders) {
+                    if (_selectedOrders.contains(order.id)) {
+                      order.status = selected;
+                    }
+                  }
+                  _selectedOrders.clear();
+                });
+                Navigator.pop(dialogContext);
+                _showMessage('Selected orders updated.');
+              },
+              child: const Text('Update'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final orders = _filteredOrders;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F8FA),
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () async => setState(() {}),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFFE91E63),
+                          Color(0xFF7B1FA2),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(17),
+                    ),
+                    child: const Icon(
+                      Icons.shopping_cart_rounded,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Orders',
+                          style: TextStyle(
+                            fontSize: 25,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'View, update, cancel, refund and track orders',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Refresh',
+                    onPressed: () => setState(() {}),
+                    icon: const Icon(Icons.refresh_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Summary cards.
+              Row(
+                children: [
+                  _summaryCard(
+                    'Total',
+                    '${widget.data.orders.length}',
+                    Icons.shopping_bag_outlined,
+                    () => setState(() => _statusFilter = 'All'),
+                  ),
+                  const SizedBox(width: 8),
+                  _summaryCard(
+                    'Pending',
+                    '${_countByStatus('Pending')}',
+                    Icons.schedule_outlined,
+                    () => setState(() => _statusFilter = 'Pending'),
+                  ),
+                  const SizedBox(width: 8),
+                  _summaryCard(
+                    'Shipped',
+                    '${_countByStatus('Shipped')}',
+                    Icons.local_shipping_outlined,
+                    () => setState(() => _statusFilter = 'Shipped'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _summaryCard(
+                    'Delivered',
+                    '${_countByStatus('Delivered')}',
+                    Icons.check_circle_outline,
+                    () => setState(() => _statusFilter = 'Delivered'),
+                  ),
+                  const SizedBox(width: 8),
+                  _summaryCard(
+                    'Cancelled',
+                    '${_countByStatus('Cancelled')}',
+                    Icons.cancel_outlined,
+                    () => setState(() => _statusFilter = 'Cancelled'),
+                  ),
+                  const SizedBox(width: 8),
+                  _summaryCard(
+                    'Revenue',
+                    '₹${_totalRevenue.toStringAsFixed(0)}',
+                    Icons.currency_rupee_rounded,
+                    () {},
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: 'Search Order ID, customer or AWB',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: _searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {});
+                          },
+                          icon: const Icon(Icons.clear_rounded),
+                        ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _filterChip(
+                      'Status',
+                      _statusFilter,
+                      _statuses,
+                      (value) => setState(() => _statusFilter = value),
+                    ),
+                    const SizedBox(width: 8),
+                    _filterChip(
+                      'Payment',
+                      _paymentFilter,
+                      _payments,
+                      (value) => setState(() => _paymentFilter = value),
+                    ),
+                    const SizedBox(width: 8),
+                    _filterChip(
+                      'Date',
+                      _dateFilter,
+                      const ['All', 'Today', '7 Days', '30 Days'],
+                      (value) => setState(() => _dateFilter = value),
+                    ),
+                    const SizedBox(width: 8),
+                    _filterChip(
+                      'Sort',
+                      _sort,
+                      const ['Newest', 'Highest Value', 'Lowest Value'],
+                      (value) => setState(() => _sort = value),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _createManualOrder,
+                      icon: const Icon(Icons.add_shopping_cart_rounded),
+                      label: const Text('Create Order'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: _applyBulkStatus,
+                    icon: const Icon(Icons.done_all_rounded),
+                    label: const Text('Bulk'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              if (_selectedOrders.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFE8EF),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_selectedOrders.length} orders selected',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+
+              if (orders.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(40),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Column(
+                    children: [
+                      Icon(Icons.inbox_outlined, size: 48),
+                      SizedBox(height: 10),
+                      Text(
+                        'No orders found',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      SizedBox(height: 4),
+                      Text('Try changing your search or filters.'),
+                    ],
+                  ),
+                )
+              else
+                ...orders.map(_orderCard),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _filterChip(
+    String label,
+    String value,
+    List<String> values,
+    ValueChanged<String> onChanged,
+  ) {
+    return PopupMenuButton<String>(
+      onSelected: onChanged,
+      itemBuilder: (context) => values
+          .map(
+            (item) => PopupMenuItem(
+              value: item,
+              child: Text(item),
+            ),
+          )
+          .toList(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE2D8DC)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '$label: $value',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(width: 6),
+            const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+          ],
+        ),
       ),
     );
   }
 }
 
+
 // -----------------------------------------------------------------------------
 // CUSTOMERS
+// -----------------------------------------------------------------------------
+
+
 // -----------------------------------------------------------------------------
 
 class CustomersModule extends StatefulWidget {
