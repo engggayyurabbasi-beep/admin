@@ -13526,33 +13526,969 @@ class AffiliatesModule extends StatefulWidget {
 }
 
 class _AffiliatesModuleState extends State<AffiliatesModule> {
+  String _affiliateSearch = '';
+  String _affiliateFilter = 'All';
+
+  final Map<String, int> _affiliateClicks = {};
+  final Map<String, int> _affiliateOrders = {};
+  final Map<String, double> _affiliateCommission = {};
+  final Map<String, double> _affiliateWallet = {};
+  final Map<String, double> _affiliatePending = {};
+  final Map<String, String> _affiliateKyc = {};
+  final Map<String, List<String>> _affiliateLinks = {};
+  final Map<String, List<WalletTransaction>> _affiliateTransactions = {};
+
+  @override
+  void initState() {
+    super.initState();
+
+    for (final affiliate in widget.data.affiliates) {
+      _affiliateClicks.putIfAbsent(affiliate.id, () => 0);
+      _affiliateOrders.putIfAbsent(affiliate.id, () => 0);
+      _affiliateCommission.putIfAbsent(
+        affiliate.id,
+        () => affiliate.earnings,
+      );
+      _affiliateWallet.putIfAbsent(
+        affiliate.id,
+        () => affiliate.earnings,
+      );
+      _affiliatePending.putIfAbsent(affiliate.id, () => 0);
+      _affiliateKyc.putIfAbsent(affiliate.id, () => 'Pending');
+      _affiliateLinks.putIfAbsent(affiliate.id, () => <String>[]);
+      _affiliateTransactions.putIfAbsent(
+        affiliate.id,
+        () => <WalletTransaction>[],
+      );
+    }
+  }
+
+  int _countActiveAffiliates() {
+    return widget.data.affiliates.where((a) => a.enabled).length;
+  }
+
+  int _totalClicks() {
+    return _affiliateClicks.values.fold(0, (sum, value) => sum + value);
+  }
+
+  int _totalOrders() {
+    return _affiliateOrders.values.fold(0, (sum, value) => sum + value);
+  }
+
+  double _totalCommission() {
+    return _affiliateCommission.values.fold(
+      0,
+      (sum, value) => sum + value,
+    );
+  }
+
+  double _totalPending() {
+    return _affiliatePending.values.fold(
+      0,
+      (sum, value) => sum + value,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final affiliates = _filteredAffiliates;
+
     return _Page(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _ModuleHeader(
             title: 'Affiliates',
-            subtitle: 'Create affiliates, commissions, pause, activate and payout controls',
+            subtitle:
+                'Manage affiliate partners, tracking, commissions and payouts',
             icon: Icons.share_rounded,
-            actions: [_PrimaryButton(label: 'Add Affiliate', icon: Icons.add_rounded, onPressed: () => _dialog())],
+            actions: [
+              _PrimaryButton(
+                label: 'Add Affiliate',
+                icon: Icons.add_rounded,
+                onPressed: () => _dialog(),
+              ),
+            ],
           ),
-          ...widget.data.affiliates.map(
-            (a) => _AdminListCard(
-              title: '${a.name} • ${a.id}',
-              subtitle: '${a.email} • Earnings ₹${a.earnings.toStringAsFixed(0)} • ${a.status}',
-              icon: Icons.share_rounded,
-              color: const Color(0xFF16C96A),
-              enabled: a.enabled,
-              onToggle: (v) => setState(() => a.enabled = v),
-              actions: [
-                _ActionChip(label: 'Edit', icon: Icons.edit_rounded, onTap: () => _dialog(item: a)),
-                _ActionChip(label: 'Payout', icon: Icons.payments_rounded, onTap: () => _showSnack(context, 'Affiliate payout opened.')),
-                _ActionChip(label: 'Delete', icon: Icons.delete_outline_rounded, danger: true, onTap: () => setState(() => widget.data.affiliates.remove(a))),
+
+          const SizedBox(height: 16),
+
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 1100
+                  ? 6
+                  : constraints.maxWidth >= 760
+                      ? 3
+                      : 2;
+
+              return GridView.count(
+                crossAxisCount: columns,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1.65,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _affiliateStatCard(
+                    'Total Affiliates',
+                    '${widget.data.affiliates.length}',
+                    Icons.people_alt_rounded,
+                    const Color(0xFF6750A4),
+                  ),
+                  _affiliateStatCard(
+                    'Active',
+                    '${_countActiveAffiliates()}',
+                    Icons.verified_rounded,
+                    const Color(0xFF16C96A),
+                  ),
+                  _affiliateStatCard(
+                    'Clicks',
+                    '${_totalClicks()}',
+                    Icons.ads_click_rounded,
+                    const Color(0xFF1976D2),
+                  ),
+                  _affiliateStatCard(
+                    'Orders',
+                    '${_totalOrders()}',
+                    Icons.shopping_bag_rounded,
+                    const Color(0xFFFF8A00),
+                  ),
+                  _affiliateStatCard(
+                    'Commission',
+                    '₹${_totalCommission().toStringAsFixed(0)}',
+                    Icons.account_balance_wallet_rounded,
+                    const Color(0xFF009688),
+                  ),
+                  _affiliateStatCard(
+                    'Pending Payout',
+                    '₹${_totalPending().toStringAsFixed(0)}',
+                    Icons.pending_actions_rounded,
+                    const Color(0xFFE53935),
+                  ),
+                ],
+              );
+            },
+          ),
+
+          const SizedBox(height: 16),
+
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 320,
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search_rounded),
+                        hintText: 'Search affiliate, ID or email...',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      onChanged: (value) {
+                        setState(() => _search = value);
+                      },
+                    ),
+                  ),
+                  DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _filter,
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'All',
+                          child: Text('All Affiliates'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Active',
+                          child: Text('Active'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Paused',
+                          child: Text('Paused'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() => _filter = value);
+                      },
+                    ),
+                  ),
+                  Text(
+                    '${affiliates.length} affiliate${affiliates.length == 1 ? '' : 's'}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          if (affiliates.isEmpty)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.people_outline_rounded,
+                        size: 52,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withOpacity(0.45),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'No affiliates found',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Try another search or add a new affiliate.',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            ...affiliates.map(
+              (a) => _AdminListCard(
+                title: '${a.name} • ${a.id}',
+                subtitle:
+                    '${a.email} • Commission ₹${_affiliateCommission[a.id]?.toStringAsFixed(0) ?? a.earnings.toStringAsFixed(0)} • ${a.status}',
+                icon: Icons.share_rounded,
+                color: const Color(0xFF16C96A),
+                enabled: a.enabled,
+                onToggle: (value) {
+                  setState(() => a.enabled = value);
+                },
+                actions: [
+                  _ActionChip(
+                    label: 'View',
+                    icon: Icons.visibility_rounded,
+                    onTap: () => _showAffiliateOverview(a),
+                  ),
+                  _ActionChip(
+                    label: 'Edit',
+                    icon: Icons.edit_rounded,
+                    onTap: () => _dialog(item: a),
+                  ),
+                  _ActionChip(
+                    label: 'Links',
+                    icon: Icons.link_rounded,
+                    onTap: () => _showAffiliateLinks(a),
+                  ),
+                  _ActionChip(
+                    label: 'Commission',
+                    icon: Icons.percent_rounded,
+                    onTap: () => _showAffiliateCommission(a),
+                  ),
+                  _ActionChip(
+                    label: 'Payout',
+                    icon: Icons.payments_rounded,
+                    onTap: () => _showAffiliatePayout(a),
+                  ),
+                  _ActionChip(
+                    label: 'Wallet',
+                    icon: Icons.account_balance_wallet_rounded,
+                    onTap: () => _showAffiliateWallet(a),
+                  ),
+                  _ActionChip(
+                    label: 'KYC',
+                    icon: Icons.verified_user_rounded,
+                    onTap: () => _showAffiliateKyc(a),
+                  ),
+                  _ActionChip(
+                    label: 'Delete',
+                    icon: Icons.delete_outline_rounded,
+                    danger: true,
+                    onTap: () {
+                      setState(() {
+                        widget.data.affiliates.remove(a);
+                        _affiliateClicks.remove(a.id);
+                        _affiliateOrders.remove(a.id);
+                        _affiliateCommission.remove(a.id);
+                        _affiliateWallet.remove(a.id);
+                        _affiliatePending.remove(a.id);
+                        _affiliateKyc.remove(a.id);
+                        _affiliateLinks.remove(a.id);
+                        _affiliateTransactions.remove(a.id);
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _affiliateStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withOpacity(0.65),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<AffiliateAdmin> get _filteredAffiliates {
+    final query = _search.trim().toLowerCase();
+
+    return widget.data.affiliates.where((affiliate) {
+      final matchesSearch = query.isEmpty ||
+          affiliate.name.toLowerCase().contains(query) ||
+          affiliate.id.toLowerCase().contains(query) ||
+          affiliate.email.toLowerCase().contains(query);
+
+      final matchesFilter = _filter == 'All' ||
+          (_filter == 'Active' && affiliate.enabled) ||
+          (_filter == 'Paused' && !affiliate.enabled);
+
+      return matchesSearch && matchesFilter;
+    }).toList();
+  }
+
+
+  Future<void> _showAffiliateOverview(AffiliateAdmin affiliate) async {
+    final clicks = _affiliateClicks[affiliate.id] ?? 0;
+    final orders = _affiliateOrders[affiliate.id] ?? 0;
+    final commission =
+        _affiliateCommission[affiliate.id] ?? affiliate.earnings;
+    final wallet = _affiliateWallet[affiliate.id] ?? affiliate.earnings;
+    final pending = _affiliatePending[affiliate.id] ?? 0;
+    final kyc = _affiliateKyc[affiliate.id] ?? 'Pending';
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('${affiliate.name} • Overview'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.badge_rounded),
+                  title: const Text('Affiliate ID'),
+                  subtitle: Text(affiliate.id),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.email_rounded),
+                  title: const Text('Email'),
+                  subtitle: Text(affiliate.email),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.verified_rounded),
+                  title: const Text('Status'),
+                  subtitle: Text(
+                    affiliate.enabled ? 'Active' : 'Paused',
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.verified_user_rounded),
+                  title: const Text('KYC'),
+                  subtitle: Text(kyc),
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.ads_click_rounded),
+                  title: const Text('Clicks'),
+                  trailing: Text('$clicks'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.shopping_bag_rounded),
+                  title: const Text('Orders'),
+                  trailing: Text('$orders'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.percent_rounded),
+                  title: const Text('Commission'),
+                  trailing: Text(
+                    '₹${commission.toStringAsFixed(0)}',
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.account_balance_wallet_rounded,
+                  ),
+                  title: const Text('Wallet'),
+                  trailing: Text(
+                    '₹${wallet.toStringAsFixed(0)}',
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.pending_actions_rounded),
+                  title: const Text('Pending Payout'),
+                  trailing: Text(
+                    '₹${pending.toStringAsFixed(0)}',
+                  ),
+                ),
               ],
             ),
           ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
         ],
+      ),
+    );
+  }
+
+
+  Future<void> _showAffiliateLinks(AffiliateAdmin affiliate) async {
+    final links =
+        _affiliateLinks.putIfAbsent(affiliate.id, () => <String>[]);
+    final controller = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: Text('Tracking Links • ${affiliate.name}'),
+            content: SizedBox(
+              width: 600,
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: controller,
+                            decoration: const InputDecoration(
+                              labelText: 'Tracking URL / Campaign',
+                              hintText:
+                                  'https://store.example.com/?ref=A001',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filled(
+                          tooltip: 'Add tracking link',
+                          onPressed: () {
+                            final value = controller.text.trim();
+                            if (value.isEmpty) return;
+
+                            setState(() {
+                              links.add(value);
+                            });
+
+                            setDialogState(() {
+                              controller.clear();
+                            });
+                          },
+                          icon: const Icon(Icons.add_rounded),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    if (links.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Text(
+                          'No tracking links yet. Add a campaign link above.',
+                        ),
+                      )
+                    else
+                      ...links.asMap().entries.map(
+                        (entry) {
+                          final index = entry.key;
+                          final link = entry.value;
+
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              leading: const Icon(Icons.link_rounded),
+                              title: Text(
+                                link,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: Text(
+                                'Clicks: ${_affiliateClicks[affiliate.id] ?? 0}',
+                              ),
+                              trailing: IconButton(
+                                tooltip: 'Delete link',
+                                icon: const Icon(
+                                  Icons.delete_outline_rounded,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    links.removeAt(index);
+                                  });
+                                  setDialogState(() {});
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    controller.dispose();
+  }
+
+
+  Future<void> _showAffiliateCommission(
+    AffiliateAdmin affiliate,
+  ) async {
+    final commission =
+        _affiliateCommission[affiliate.id] ?? affiliate.earnings;
+    final orders = _affiliateOrders[affiliate.id] ?? 0;
+    final pending = _affiliatePending[affiliate.id] ?? 0;
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Commission • ${affiliate.name}'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.percent_rounded),
+                  title: const Text('Total Commission'),
+                  trailing: Text(
+                    '₹${commission.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.shopping_bag_rounded),
+                  title: const Text('Attributed Orders'),
+                  trailing: Text(
+                    '$orders',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.pending_actions_rounded),
+                  title: const Text('Pending Commission'),
+                  trailing: Text(
+                    '₹${pending.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const Divider(),
+                const ListTile(
+                  leading: Icon(Icons.info_outline_rounded),
+                  title: Text('Commission Review'),
+                  subtitle: Text(
+                    'Review affiliate-generated earnings before approving them for payout.',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  Future<void> _showAffiliatePayout(
+    AffiliateAdmin affiliate,
+  ) async {
+    final wallet =
+        _affiliateWallet[affiliate.id] ?? affiliate.earnings;
+    final pending = _affiliatePending[affiliate.id] ?? 0;
+    final amountController = TextEditingController(
+      text: pending > 0 ? pending.toStringAsFixed(0) : '',
+    );
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Payout • ${affiliate.name}'),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(
+                  Icons.account_balance_wallet_rounded,
+                ),
+                title: const Text('Wallet Balance'),
+                trailing: Text(
+                  '₹${wallet.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.pending_actions_rounded),
+                title: const Text('Pending Payout'),
+                trailing: Text(
+                  '₹${pending.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: amountController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Payout Amount',
+                  prefixText: '₹ ',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              final amount =
+                  double.tryParse(amountController.text.trim()) ?? 0;
+
+              if (amount <= 0 || amount > wallet) {
+                _showSnack(
+                  context,
+                  'Enter a valid amount within wallet balance.',
+                );
+                return;
+              }
+
+              setState(() {
+                _affiliateWallet[affiliate.id] = wallet - amount;
+
+                _affiliatePending[affiliate.id] =
+                    (pending - amount).clamp(0, double.infinity);
+
+                _affiliateTransactions
+                    .putIfAbsent(
+                      affiliate.id,
+                      () => <WalletTransaction>[],
+                    )
+                    .add(
+                      WalletTransaction(
+                        'AP${DateTime.now().millisecondsSinceEpoch}',
+                        'Affiliate payout',
+                        amount,
+                        'Debit',
+                      ),
+                    );
+              });
+
+              Navigator.pop(dialogContext);
+
+              _showSnack(
+                context,
+                'Payout ₹${amount.toStringAsFixed(0)} processed.',
+              );
+            },
+            icon: const Icon(Icons.payments_rounded),
+            label: const Text('Process Payout'),
+          ),
+        ],
+      ),
+    );
+
+    amountController.dispose();
+  }
+
+  Future<void> _showAffiliateWallet(
+    AffiliateAdmin affiliate,
+  ) async {
+    final wallet =
+        _affiliateWallet[affiliate.id] ?? affiliate.earnings;
+    final transactions =
+        _affiliateTransactions[affiliate.id] ??
+            <WalletTransaction>[];
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Wallet • ${affiliate.name}'),
+        content: SizedBox(
+          width: 600,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(
+                  Icons.account_balance_wallet_rounded,
+                ),
+                title: const Text('Available Balance'),
+                trailing: Text(
+                  '₹${wallet.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const Divider(),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Recent Transactions',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (transactions.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text(
+                    'No wallet transactions yet.',
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: transactions.length,
+                    itemBuilder: (context, index) {
+                      final transaction =
+                          transactions.reversed.elementAt(index);
+
+                      final isCredit =
+                          transaction.type.toLowerCase() == 'credit';
+
+                      return ListTile(
+                        leading: Icon(
+                          isCredit
+                              ? Icons.arrow_downward_rounded
+                              : Icons.arrow_upward_rounded,
+                        ),
+                        title: Text(transaction.note),
+                        subtitle: Text(transaction.id),
+                        trailing: Text(
+                          '₹${transaction.amount.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  Future<void> _showAffiliateKyc(
+    AffiliateAdmin affiliate,
+  ) async {
+    var status = _affiliateKyc[affiliate.id] ?? 'Pending';
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: Text(
+              'KYC & Documents • ${affiliate.name}',
+            ),
+            content: SizedBox(
+              width: 540,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: status,
+                    decoration: const InputDecoration(
+                      labelText: 'KYC Status',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Pending',
+                        child: Text('Pending'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Verified',
+                        child: Text('Verified'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Rejected',
+                        child: Text('Rejected'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setDialogState(() {
+                        status = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  ListTile(
+                    leading: const Icon(Icons.badge_rounded),
+                    title: const Text('Identity Document'),
+                    subtitle: const Text(
+                      'Identity verification record',
+                    ),
+                    trailing: TextButton(
+                      onPressed: () {
+                        _showSnack(
+                          context,
+                          'Identity document viewer opened.',
+                        );
+                      },
+                      child: const Text('View'),
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(
+                      Icons.account_balance_rounded,
+                    ),
+                    title: const Text('Bank Details'),
+                    subtitle: const Text(
+                      'Payout account verification',
+                    ),
+                    trailing: TextButton(
+                      onPressed: () {
+                        _showSnack(
+                          context,
+                          'Bank verification details opened.',
+                        );
+                      },
+                      child: const Text('View'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              FilledButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _affiliateKyc[affiliate.id] = status;
+                  });
+
+                  Navigator.pop(dialogContext);
+
+                  _showSnack(
+                    context,
+                    'KYC status updated to $status.',
+                  );
+                },
+                icon: const Icon(Icons.save_rounded),
+                label: const Text('Save Status'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
