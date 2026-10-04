@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'pos_module_kstore_ready.dart';
 import 'shipping_label_4x6_real.dart';
 import 'add_category_page.dart';
 
@@ -238,7 +239,7 @@ class _KStoreAdminSystemState extends State<KStoreAdminSystem> {
     'API & Integrations',
     'Staff & Roles',
     'Settings',
-    'Account & Security',
+    'POS & Billing',
   ];
 
   final icons = const [
@@ -262,7 +263,7 @@ class _KStoreAdminSystemState extends State<KStoreAdminSystem> {
     Icons.extension_rounded,
     Icons.manage_accounts_rounded,
     Icons.settings_rounded,
-    Icons.security_rounded,
+    Icons.point_of_sale_rounded,
   ];
 
   final colors = const [
@@ -482,7 +483,7 @@ class _KStoreAdminSystemState extends State<KStoreAdminSystem> {
       case 19:
         return SettingsModule(data: data);
       case 20:
-        return SecurityModule(data: data);
+        return PosModule(data: data);
       default:
         return DashboardModule(data: data, onOpen: _select);
     }
@@ -6210,7 +6211,7 @@ class _PaymentsModuleState extends State<PaymentsModule>
         _section(
           'Gateway Security',
           'Keep secrets protected and use webhooks for payment verification.',
-          Icons.security_rounded,
+          Icons.point_of_sale_rounded,
           Column(
             children: const [
               _SecurityRow(
@@ -13515,7 +13516,7 @@ class _SecurityModuleState extends State<SecurityModule> {
           _ModuleHeader(
             title: 'Account & Security',
             subtitle: 'Protect admin access, sessions, passwords, API secrets and activity',
-            icon: Icons.security_rounded,
+            icon: Icons.point_of_sale_rounded,
             actions: [
               _PrimaryButton(label: 'Security Test', icon: Icons.shield_rounded, onPressed: () => _showSnack(context, 'Security checklist opened.')),
             ],
@@ -13527,7 +13528,7 @@ class _SecurityModuleState extends State<SecurityModule> {
           const SizedBox(height: 12),
           _SectionCard(
             title: 'Security Controls',
-            icon: Icons.security_rounded,
+            icon: Icons.point_of_sale_rounded,
             child: Column(
               children: security.entries
                   .map(
