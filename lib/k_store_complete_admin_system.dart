@@ -317,7 +317,7 @@ final List<int> _sectionHistory = [0];
         duration: const Duration(milliseconds: 220),
         child: _buildSelectedModule(),
       ),
-    );
+    ),
     );
   }
 
