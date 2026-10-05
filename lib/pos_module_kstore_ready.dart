@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 /// K - Store POS / Billing module.
 /// This module is intentionally self-contained and uses local in-memory state.
@@ -38,6 +42,14 @@ class _PosModuleState extends State<PosModule> {
   bool _cashRegisterOpen = true;
   double _openingCash = 5000;
   String _invoicePrefix = 'KS-POS';
+  String _customerAddress = '';
+  String _customerCity = '';
+  String _customerState = '';
+  String _customerPincode = '';
+  String _printerType = 'Thermal Printer';
+  String _paperSize = '4 × 6 inch';
+  String _printerName = 'System Printer';
+
 
   @override
   void initState() {
@@ -358,6 +370,11 @@ class _PosModuleState extends State<PosModule> {
               onPressed: _selectCustomer,
               icon: const Icon(Icons.search),
               label: const Text('Select Customer'),
+            ),
+            OutlinedButton.icon(
+              onPressed: _addCustomer,
+              icon: const Icon(Icons.person_add_alt_1),
+              label: const Text('Add Customer'),
             ),
           ],
         ),
@@ -791,7 +808,7 @@ class _PosModuleState extends State<PosModule> {
           _setting('Customer Required', 'Optional for walk-in sales',
               () => _toast('Customer requirement setting opened')),
           _setting('Print Invoice', 'Print/share after completed sale',
-              () => _toast('Invoice printing setting opened')),
+              () => _printerSettingsDialog()),
         ],
       ),
     );
@@ -1073,6 +1090,11 @@ class _PosModuleState extends State<PosModule> {
     final sale = _PosSale(
       invoice,
       customer,
+      _customerPhone.trim(),
+      _customerAddress.trim(),
+      _customerCity.trim(),
+      _customerState.trim(),
+      _customerPincode.trim(),
       _payment,
       total,
       DateTime.now().toString().split('.').first,
@@ -1148,11 +1170,308 @@ class _PosModuleState extends State<PosModule> {
               onPressed: () => Navigator.pop(context),
               child: const Text('Close')),
           OutlinedButton.icon(
-            onPressed: () => _toast('Invoice print/share action ready'),
+            onPressed: () => _invoicePrintOptions(sale),
             icon: const Icon(Icons.print_outlined),
             label: const Text('Print / Share'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _invoicePrintOptions(_PosSale sale) {
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.print_outlined),
+              title: const Text('Print Invoice'),
+              subtitle: Text('$_paperSize • $_printerType'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _printInvoice(sale);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.share_outlined),
+              title: const Text('Share Invoice PDF'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _shareInvoicePdf(sale);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings_outlined),
+              title: const Text('Printer & Invoice Settings'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _printerSettingsDialog();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  PdfPageFormat _selectedPageFormat() {
+    switch (_paperSize) {
+      case 'A4':
+        return PdfPageFormat.a4;
+      case 'A5':
+        return PdfPageFormat.a5;
+      case 'Thermal 58mm':
+        return const PdfPageFormat(164, 600);
+      case 'Thermal 80mm':
+        return const PdfPageFormat(226, 600);
+      default:
+        return const PdfPageFormat(288, 432);
+    }
+  }
+
+  Future<Uint8List> _invoicePdf(_PosSale sale) async {
+    final doc = pw.Document();
+
+    final address = [
+      _customerAddress,
+      _customerCity,
+      _customerState,
+      _customerPincode,
+    ].where((e) => e.trim().isNotEmpty).join(', ');
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: _selectedPageFormat(),
+        margin: const pw.EdgeInsets.all(16),
+        build: (_) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              'K - Store',
+              style: pw.TextStyle(
+                fontSize: 18,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+            pw.Text('Invoice: ${sale.invoice}'),
+            pw.Text('Date: ${sale.date}'),
+            pw.SizedBox(height: 8),
+            pw.Text('Customer: ${sale.customer}'),
+            if (_customerPhone.isNotEmpty)
+              pw.Text('Mobile: ${sale.phone}'),
+            if (address.isNotEmpty)
+              pw.Text('Address: ${sale.address}'),
+            pw.SizedBox(height: 8),
+            pw.Table.fromTextArray(
+              headers: const ['Item', 'Qty', 'Amount'],
+              data: [
+                for (final item in sale.items)
+                  [
+                    item.product.name,
+                    '${item.qty}',
+                    '₹${(item.product.price * item.qty).toStringAsFixed(2)}',
+                  ],
+              ],
+            ),
+            pw.SizedBox(height: 8),
+            pw.Divider(),
+            pw.Align(
+              alignment: pw.Alignment.centerRight,
+              child: pw.Text(
+                'TOTAL: ₹${sale.total.toStringAsFixed(2)}',
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ),
+            pw.Text('Payment: ${sale.payment}'),
+            pw.SizedBox(height: 12),
+            pw.Center(
+              child: pw.Text('Thank you for shopping with K - Store'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return doc.save();
+  }
+
+  Future<void> _printInvoice(_PosSale sale) async {
+    try {
+      final bytes = await _invoicePdf(sale);
+
+      await Printing.layoutPdf(
+        name: sale.invoice,
+        onLayout: (_) async => bytes,
+      );
+    } catch (e) {
+      _toast('Print failed: $e');
+    }
+  }
+
+  Future<void> _shareInvoicePdf(_PosSale sale) async {
+    try {
+      final bytes = await _invoicePdf(sale);
+
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: '${sale.invoice}.pdf',
+      );
+    } catch (e) {
+      _toast('Share failed: $e');
+    }
+  }
+
+  Future<void> _printTestPage() async {
+    try {
+      await Printing.layoutPdf(
+        name: 'K-Store Printer Test',
+        onLayout: (_) async {
+          final doc = pw.Document();
+
+          doc.addPage(
+            pw.Page(
+              pageFormat: _selectedPageFormat(),
+              margin: const pw.EdgeInsets.all(16),
+              build: (_) => pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'K - Store',
+                    style: pw.TextStyle(
+                      fontSize: 20,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 8),
+                  pw.Text('PRINTER TEST PRINT'),
+                  pw.Text('Type: $_printerType'),
+                  pw.Text('Paper: $_paperSize'),
+                  pw.Text('Printer: $_printerName'),
+                  pw.SizedBox(height: 12),
+                  pw.Text('Test successful.'),
+                ],
+              ),
+            ),
+          );
+
+          return doc.save();
+        },
+      );
+    } catch (e) {
+      _toast('Test print failed: $e');
+    }
+  }
+
+  void _printerSettingsDialog() {
+    final printer = TextEditingController(text: _printerName);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Printer & Invoice Settings'),
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                DropdownButtonFormField<String>(
+                  value: _printerType,
+                  decoration: const InputDecoration(
+                    labelText: 'Printer Type',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'Thermal Printer',
+                      child: Text('Thermal Printer'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Laser Printer',
+                      child: Text('Laser Printer'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Inkjet Printer',
+                      child: Text('Inkjet Printer'),
+                    ),
+                  ],
+                  onChanged: (v) {
+                    setDialogState(
+                      () => _printerType = v ?? _printerType,
+                    );
+                  },
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  value: _paperSize,
+                  decoration: const InputDecoration(
+                    labelText: 'Invoice / Paper Size',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: '4 × 6 inch',
+                      child: Text('4 × 6 inch'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'A4',
+                      child: Text('A4'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'A5',
+                      child: Text('A5'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Thermal 58mm',
+                      child: Text('Thermal 58mm'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Thermal 80mm',
+                      child: Text('Thermal 80mm'),
+                    ),
+                  ],
+                  onChanged: (v) {
+                    setDialogState(
+                      () => _paperSize = v ?? _paperSize,
+                    );
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: printer,
+                  decoration: const InputDecoration(
+                    labelText: 'Printer Name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _printTestPage();
+              },
+              child: const Text('Test Print'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _printerName = printer.text.trim().isEmpty
+                      ? 'System Printer'
+                      : printer.text.trim();
+                });
+
+                Navigator.pop(dialogContext);
+                _toast('Printer settings saved');
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1259,30 +1578,93 @@ class _PosModuleState extends State<PosModule> {
   void _addCustomer() {
     final name = TextEditingController();
     final mobile = TextEditingController();
+    final address = TextEditingController();
+    final city = TextEditingController();
+    final state = TextEditingController();
+    final pincode = TextEditingController();
 
     showDialog(
       context: context,
       builder: (dialog) => AlertDialog(
         title: const Text('Add Customer'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: name,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Customer Name',
-              ),
+        content: SizedBox(
+          width: 500,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: name,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Customer Name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: mobile,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Mobile Number',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: address,
+                  decoration: const InputDecoration(
+                    labelText: 'Address (Optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: city,
+                        decoration: const InputDecoration(
+                          labelText: 'City',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: state,
+                        decoration: const InputDecoration(
+                          labelText: 'State',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: pincode,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Pincode',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Address is optional. Bill can be completed without an address.',
+                    style: TextStyle(
+                      color: Colors.blueGrey,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: mobile,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Mobile Number',
-              ),
-            ),
-          ],
+          ),
         ),
         actions: [
           TextButton(
@@ -1296,8 +1678,8 @@ class _PosModuleState extends State<PosModule> {
               final customerName = name.text.trim();
               final customerMobile = mobile.text.trim();
 
-              if (customerName.isEmpty || customerMobile.isEmpty) {
-                _toast('Name and mobile are required');
+              if (customerName.isEmpty) {
+                _toast('Customer name is required');
                 return;
               }
 
@@ -1309,6 +1691,10 @@ class _PosModuleState extends State<PosModule> {
               setState(() {
                 _customerName = customerName;
                 _customerPhone = customerMobile;
+                _customerAddress = address.text.trim();
+                _customerCity = city.text.trim();
+                _customerState = state.text.trim();
+                _customerPincode = pincode.text.trim();
               });
 
               Navigator.pop(dialog);
@@ -1319,6 +1705,7 @@ class _PosModuleState extends State<PosModule> {
       ),
     );
   }
+
   void _scanBarcode() => _toast('Barcode scanner integration point ready');
 
   void _newReturn() {
@@ -1430,9 +1817,26 @@ class _PosCartItem {
 
 class _PosSale {
   _PosSale(
-      this.invoice, this.customer, this.payment, this.total, this.date, this.items);
+    this.invoice,
+    this.customer,
+    this.phone,
+    this.address,
+    this.city,
+    this.state,
+    this.pincode,
+    this.payment,
+    this.total,
+    this.date,
+    this.items,
+  );
+
   String invoice;
   String customer;
+  String phone;
+  String address;
+  String city;
+  String state;
+  String pincode;
   String payment;
   double total;
   String date;
