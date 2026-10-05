@@ -534,6 +534,18 @@ Future<void> _handleAdminBack() async {
               ),
             );
           },
+          onCustomerCreated: (name, mobile) {
+            final id = 'U${1000 + data.customers.length + 1}';
+
+            data.customers.add(
+              CustomerAdmin(
+                id,
+                name,
+                mobile,
+                true,
+              ),
+            );
+          },
         );
       default:
         return DashboardModule(data: data, onOpen: _select);

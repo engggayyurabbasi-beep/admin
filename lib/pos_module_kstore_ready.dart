@@ -8,11 +8,13 @@ class PosModule extends StatefulWidget {
     super.key,
     required this.data,
     required this.onOrderCreated,
+    required this.onCustomerCreated,
   });
 
   final dynamic data;
   final void Function(String customer, double amount, String payment)
       onOrderCreated;
+  final void Function(String name, String mobile) onCustomerCreated;
 
   @override
   State<PosModule> createState() => _PosModuleState();
@@ -625,6 +627,13 @@ class _PosModuleState extends State<PosModule> {
   }
 
   Widget _customersPage() {
+    final customers = <dynamic>[];
+
+    try {
+      final source = widget.data.customers as Iterable;
+      customers.addAll(source);
+    } catch (_) {}
+
     return _simplePage(
       'POS Customers',
       'Select customers, keep contact details and view their purchase history',
@@ -635,9 +644,14 @@ class _PosModuleState extends State<PosModule> {
               icon: const Icon(Icons.person_add_alt_1),
               label: const Text('Add Customer')),
           const SizedBox(height: 12),
-          _customerInfo('Walk-in Customer', 'No mobile', 'Counter customer'),
-          _customerInfo('Rahul Sharma', '+91 98765 43210', '6 purchases'),
-          _customerInfo('Neha Khan', '+91 99887 77665', '4 purchases'),
+          _customerInfo(
+              'Walk-in Customer', 'No mobile', 'Counter customer'),
+          for (final customer in customers)
+            _customerInfo(
+              customer.name.toString(),
+              customer.email.toString(),
+              'Customer',
+            ),
         ],
       ),
     );
@@ -1153,6 +1167,13 @@ class _PosModuleState extends State<PosModule> {
   }
 
   void _selectCustomer() {
+    final customers = <dynamic>[];
+
+    try {
+      final source = widget.data.customers as Iterable;
+      customers.addAll(source);
+    } catch (_) {}
+
     showModalBottomSheet(
       context: context,
       builder: (_) => SafeArea(
@@ -1169,35 +1190,87 @@ class _PosModuleState extends State<PosModule> {
                 Navigator.pop(context);
               },
             ),
-            ListTile(
-              title: const Text('Rahul Sharma'),
-              subtitle: const Text('+91 98765 43210'),
-              onTap: () {
-                setState(() {
-                  _customerName = 'Rahul Sharma';
-                  _customerPhone = '+91 98765 43210';
-                });
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              title: const Text('Neha Khan'),
-              subtitle: const Text('+91 99887 77665'),
-              onTap: () {
-                setState(() {
-                  _customerName = 'Neha Khan';
-                  _customerPhone = '+91 99887 77665';
-                });
-                Navigator.pop(context);
-              },
-            ),
+            for (final customer in customers)
+              ListTile(
+                title: Text(customer.name.toString()),
+                subtitle: Text(customer.email.toString()),
+                onTap: () {
+                  setState(() {
+                    _customerName = customer.name.toString();
+                    _customerPhone = customer.email.toString();
+                  });
+                  Navigator.pop(context);
+                },
+              ),
           ],
         ),
       ),
     );
   }
 
-  void _addCustomer() => _toast('Customer form opened');
+  void _addCustomer() {
+    final name = TextEditingController();
+    final mobile = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Add Customer'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: name,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Customer Name',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: mobile,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: 'Mobile Number',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.save_rounded),
+            label: const Text('Save Customer'),
+            onPressed: () {
+              final customerName = name.text.trim();
+              final customerMobile = mobile.text.trim();
+
+              if (customerName.isEmpty || customerMobile.isEmpty) {
+                _toast('Name and mobile are required');
+                return;
+              }
+
+              widget.onCustomerCreated(
+                customerName,
+                customerMobile,
+              );
+
+              setState(() {
+                _customerName = customerName;
+                _customerPhone = customerMobile;
+              });
+
+              Navigator.pop(dialog);
+              _toast('Customer added successfully');
+            },
+          ),
+        ],
+      ),
+    );
+  }
   void _scanBarcode() => _toast('Barcode scanner integration point ready');
 
   void _newReturn() {
