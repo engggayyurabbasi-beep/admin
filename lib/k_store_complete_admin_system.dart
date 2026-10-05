@@ -108,8 +108,16 @@ class OrderAdmin {
 }
 
 class CustomerAdmin {
-  CustomerAdmin(this.id, this.name, this.email, this.enabled);
+  CustomerAdmin(
+    this.id,
+    this.name,
+    this.email,
+    this.enabled, {
+    this.mobile = '',
+  });
+
   String id, name, email;
+  String mobile;
   bool enabled;
 }
 
@@ -536,13 +544,13 @@ Future<void> _handleAdminBack() async {
           },
           onCustomerCreated: (name, mobile) {
             final id = 'U${1000 + data.customers.length + 1}';
-
             data.customers.add(
               CustomerAdmin(
                 id,
                 name,
-                mobile,
+                '',
                 true,
+                mobile: mobile,
               ),
             );
           },

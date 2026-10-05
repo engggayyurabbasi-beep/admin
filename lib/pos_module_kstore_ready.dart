@@ -22,14 +22,7 @@ class PosModule extends StatefulWidget {
 
 class _PosModuleState extends State<PosModule> {
   int _tab = 0;
-  final List<_PosProduct> _products = [
-    _PosProduct('P001', 'Soha Hair Oil', 'Hair Care', 210, 120),
-    _PosProduct('P002', 'Kirpilez Tablets', 'Herbal', 270, 80),
-    _PosProduct('P003', 'Slim Trimz Powder', 'Wellness', 270, 60),
-    _PosProduct('P004', 'Hanicyst Syrup', 'Herbal', 599, 45),
-    _PosProduct('P005', 'Tahleel-E-Warm Syrup', 'Unani', 599, 55),
-    _PosProduct('P006', 'Majoan Vajikaran Gold', 'Unani', 3200, 20),
-  ];
+  final List<_PosProduct> _products = [];
   final List<_PosCartItem> _cart = [];
   final List<_PosSale> _sales = [];
   final List<_PosSaleDraft> _held = [];
@@ -45,6 +38,39 @@ class _PosModuleState extends State<PosModule> {
   bool _cashRegisterOpen = true;
   double _openingCash = 5000;
   String _invoicePrefix = 'KS-POS';
+
+  @override
+  void initState() {
+    super.initState();
+    _syncProductsFromAdmin();
+  }
+
+  void _syncProductsFromAdmin() {
+    try {
+      final source = widget.data.products as Iterable;
+      _products
+        ..clear()
+        ..addAll(
+          source.map(
+            (p) => _PosProduct(
+              p.id.toString(),
+              p.name.toString(),
+              p.category.toString(),
+              (p.price as num).toDouble(),
+              (p.stock as num).toInt(),
+            ),
+          ),
+        );
+    } catch (_) {}
+  }
+
+  @override
+  void didUpdateWidget(covariant PosModule oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.data, widget.data)) {
+      _syncProductsFromAdmin();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -649,7 +675,9 @@ class _PosModuleState extends State<PosModule> {
           for (final customer in customers)
             _customerInfo(
               customer.name.toString(),
-              customer.email.toString(),
+              customer.mobile.toString().isNotEmpty
+                  ? customer.mobile.toString()
+                  : customer.email.toString(),
               'Customer',
             ),
         ],
@@ -948,6 +976,7 @@ class _PosModuleState extends State<PosModule> {
   }
 
   void _newSale() {
+    _syncProductsFromAdmin();
     _clearCart();
     setState(() {
       _customerName = 'Walk-in Customer';
@@ -1053,6 +1082,18 @@ class _PosModuleState extends State<PosModule> {
     setState(() {
       for (final item in _cart) {
         item.product.stock -= item.qty;
+
+        try {
+          final source = widget.data.products as Iterable;
+          for (final adminProduct in source) {
+            if (adminProduct.id.toString() == item.product.sku) {
+              final current = (adminProduct.stock as num).toInt();
+              final next = current - item.qty;
+              adminProduct.stock = next < 0 ? 0 : next;
+              break;
+            }
+          }
+        } catch (_) {}
       }
 
       _sales.add(sale);
@@ -1063,6 +1104,7 @@ class _PosModuleState extends State<PosModule> {
       _cashReceived = 0;
     });
 
+    _syncProductsFromAdmin();
     widget.onOrderCreated(customer, total, _payment);
     _invoiceDialog(sale, completed: true);
   }
@@ -1193,11 +1235,17 @@ class _PosModuleState extends State<PosModule> {
             for (final customer in customers)
               ListTile(
                 title: Text(customer.name.toString()),
-                subtitle: Text(customer.email.toString()),
+                subtitle: Text(
+                  customer.mobile.toString().isNotEmpty
+                      ? customer.mobile.toString()
+                      : customer.email.toString(),
+                ),
                 onTap: () {
                   setState(() {
                     _customerName = customer.name.toString();
-                    _customerPhone = customer.email.toString();
+                    _customerPhone = customer.mobile.toString().isNotEmpty
+                        ? customer.mobile.toString()
+                        : customer.email.toString();
                   });
                   Navigator.pop(context);
                 },
