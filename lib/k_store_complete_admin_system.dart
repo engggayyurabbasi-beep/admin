@@ -15902,52 +15902,223 @@ class SettingsModule extends StatefulWidget {
 }
 
 class _SettingsModuleState extends State<SettingsModule> {
+  final Map<String, String> _values = {
+    'Store Name': 'K - Store',
+    'Business Type': 'Retail / E-commerce',
+    'Store Mobile': '',
+    'Store Email': '',
+    'Store Address': '',
+    'GSTIN': '',
+    'PAN': '',
+    'Currency': 'INR (₹)',
+    'Timezone': 'Asia/Kolkata',
+    'Order Prefix': 'KIRZ',
+    'Minimum Order': '0',
+    'Maximum Order': 'No limit',
+    'Default GST': '18%',
+    'Shipping Charge': '49',
+    'Free Shipping Above': '999',
+    'Return Window': '7 days',
+    'Low Stock Threshold': '5',
+    'POS Counter': 'Main Counter',
+    'Invoice Prefix': 'KS-POS',
+    'Paper Size': '4 × 6 inch',
+    'Printer Type': 'Thermal Printer',
+    'Printer Name': 'System Printer',
+    'Barcode Mode': 'Camera + External Scanner',
+    'Barcode Format': 'SKU / EAN / UPC / QR',
+    'Scanner Sound': 'Enabled',
+    'Scanner Vibration': 'Enabled',
+    'WhatsApp Status': 'Not Connected',
+    'Email Status': 'Not Connected',
+    'SMS Status': 'Not Connected',
+    'Razorpay Status': 'Not Connected',
+    'Shiprocket Status': 'Not Connected',
+    'Shipmojo Status': 'Not Connected',
+  };
+
+  final Map<String, bool> _defaults = {
+    'Store Open': true,
+    'Customer Registration': true,
+    'Guest Checkout': true,
+    'COD': true,
+    'Online Payments': true,
+    'Tax Enabled': true,
+    'GST Invoice': true,
+    'Auto Confirm Orders': false,
+    'Auto Cancel Unpaid Orders': false,
+    'Customer Required for POS': false,
+    'Auto Print Invoice': false,
+    'Print Duplicate Copy': false,
+    'Cash Drawer': false,
+    'Hold / Park Sale': true,
+    'Barcode Scanner': true,
+    'Auto Add Scanned Product': true,
+    'Repeated Scan Increases Quantity': true,
+    'Allow Negative Stock': false,
+    'Low Stock Alerts': true,
+    'Batch Tracking': false,
+    'Expiry Tracking': false,
+    'Customer Wallet': true,
+    'Loyalty Points': true,
+    'Reviews': true,
+    'Referral Program': true,
+    'Reseller Program': true,
+    'Affiliate Program': true,
+    'Coupons': true,
+    'WhatsApp Notifications': false,
+    'Email Notifications': true,
+    'Push Notifications': true,
+    'Vendor Registration': true,
+    'Vendor Approval Required': true,
+    'Vendor Commission': true,
+    'Reseller Approval Required': true,
+    'Affiliate Approval Required': true,
+    'Maintenance Mode': false,
+    'Admin Login Alerts': true,
+    'Two-factor Authentication': false,
+    'Session Timeout': true,
+    'Audit Log': true,
+    'API Secret Protection': true,
+    'Backup Reminders': true,
+  };
+
   @override
-  Widget build(BuildContext context) {
-    return _Page(
-      child: Column(
-        children: [
-          _ModuleHeader(
-            title: 'Settings',
-            subtitle: 'Manage every major store, order, payment, customer and business setting',
-            icon: Icons.settings_rounded,
-            actions: [
-              _PrimaryButton(label: 'Add Setting', icon: Icons.add_rounded, onPressed: () => _customSetting()),
-            ],
+  void initState() {
+    super.initState();
+    for (final entry in _defaults.entries) {
+      widget.data.settings.putIfAbsent(entry.key, () => entry.value);
+    }
+  }
+
+  bool _get(String key) => widget.data.settings[key] ?? _defaults[key] ?? false;
+
+  void _set(String key, bool value) {
+    setState(() => widget.data.settings[key] = value);
+  }
+
+  String _text(String key) => _values[key] ?? '';
+
+  Future<void> _editValue(String key, String label) async {
+    final c = TextEditingController(text: _text(key));
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(label),
+        content: TextField(
+          controller: c,
+          decoration: InputDecoration(
+            labelText: label,
+            border: const OutlineInputBorder(),
           ),
-          _SettingsGroup(
-            title: 'Store & Checkout',
-            icon: Icons.storefront_rounded,
-            entries: ['Store Open', 'Customer Registration', 'Guest Checkout', 'COD', 'Online Payments'],
-            values: widget.data.settings,
-            onChanged: (k, v) => setState(() => widget.data.settings[k] = v),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
           ),
-          _SettingsGroup(
-            title: 'Growth & Loyalty',
-            icon: Icons.trending_up_rounded,
-            entries: ['Reviews', 'Referral Program', 'Reseller Program', 'Affiliate Program'],
-            values: widget.data.settings,
-            onChanged: (k, v) => setState(() => widget.data.settings[k] = v),
-          ),
-          _SettingsGroup(
-            title: 'System',
-            icon: Icons.tune_rounded,
-            entries: ['Maintenance Mode'],
-            values: widget.data.settings,
-            onChanged: (k, v) => setState(() => widget.data.settings[k] = v),
-          ),
-          const SizedBox(height: 12),
-          _ActionGrid(
-            actions: [
-              _ToolAction('Store Profile', Icons.store_rounded, () => _keyDialog('Store Profile')),
-              _ToolAction('Tax / GST', Icons.receipt_long_rounded, () => _keyDialog('Tax & GST')),
-              _ToolAction('Invoice', Icons.description_rounded, () => _keyDialog('Invoice Settings')),
-              _ToolAction('Email', Icons.email_rounded, () => _keyDialog('Email Settings')),
-              _ToolAction('WhatsApp', Icons.chat_rounded, () => _keyDialog('WhatsApp Settings')),
-              _ToolAction('Backup', Icons.backup_rounded, _backupSettings),
-            ],
+          FilledButton(
+            onPressed: () {
+              setState(() => _values[key] = c.text.trim());
+              Navigator.pop(dialogContext);
+              _snack('$label saved');
+            },
+            child: const Text('Save'),
           ),
         ],
+      ),
+    );
+    c.dispose();
+  }
+
+  void _snack(String message) => _showSnack(context, message);
+
+  void _openSection(
+    String title,
+    IconData icon,
+    List<String> toggles, {
+    List<String> values = const [],
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Icon(icon),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const Divider(),
+                ...toggles.map(
+                  (key) => SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(key),
+                    value: _get(key),
+                    onChanged: (v) => _set(key, v),
+                  ),
+                ),
+                ...values.map(
+                  (key) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(key),
+                    subtitle: Text(
+                      _text(key).isEmpty ? 'Not configured' : _text(key),
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => _editValue(key, key),
+                  ),
+                ),
+                if (title == 'Printer')
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.print_rounded),
+                    title: const Text('Test Print'),
+                    subtitle: Text(
+                      '${_text('Paper Size')} • ${_text('Printer Type')}',
+                    ),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _snack(
+                        'Test print command prepared for ${_text('Printer Name')}',
+                      );
+                    },
+                  ),
+                if (title == 'Barcode Scanner')
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.qr_code_scanner_rounded),
+                    title: const Text('Scanner Test'),
+                    subtitle: Text(_text('Barcode Format')),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _snack('Barcode scanner test mode ready');
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -15956,35 +16127,326 @@ class _SettingsModuleState extends State<SettingsModule> {
     final lines = <String>[
       'K - Store Admin Backup',
       'Created: ${DateTime.now().toIso8601String()}',
-      'Settings: ${widget.data.settings}',
+      'Boolean Settings: ${widget.data.settings}',
+      'Advanced Settings: $_values',
       'Products: ${widget.data.products.map((p) => '${p.id}|${p.name}|${p.stock}').join('; ')}',
       'Orders: ${widget.data.orders.map((o) => '${o.id}|${o.amount}|${o.status}').join('; ')}',
       'Customers: ${widget.data.customers.map((c) => '${c.id}|${c.name}|${c.email}').join('; ')}',
     ];
     Clipboard.setData(ClipboardData(text: lines.join('\n')));
-    _showSnack(context, 'Admin backup snapshot copied to clipboard.');
+    _snack('Complete admin backup snapshot copied to clipboard.');
   }
+
   Future<void> _customSetting() async {
     final name = TextEditingController();
-    await showDialog(
+    await showDialog<void>(
       context: context,
-      builder: (context) => _FormDialog(
+      builder: (dialogContext) => _FormDialog(
         title: 'Add Setting',
         children: [_Field(name, 'Setting Name')],
         onSave: () {
-          setState(() => widget.data.settings[name.text] = true);
-          Navigator.pop(context);
+          final value = name.text.trim();
+          if (value.isEmpty) return;
+          setState(() => widget.data.settings[value] = true);
+          Navigator.pop(dialogContext);
+          _snack('Custom setting added');
         },
       ),
     );
     name.dispose();
   }
 
-  void _keyDialog(String title) => showDialog(
-        context: context,
-        builder: (context) => _CredentialDialog(title: title),
-      );
+  @override
+  Widget build(BuildContext context) {
+    return _Page(
+      child: Column(
+        children: [
+          _ModuleHeader(
+            title: 'Settings',
+            subtitle:
+                'Manage every major store, order, payment, customer and business setting',
+            icon: Icons.settings_rounded,
+            actions: [
+              _PrimaryButton(
+                label: 'Add Setting',
+                icon: Icons.add_rounded,
+                onPressed: _customSetting,
+              ),
+            ],
+          ),
+          _SettingsGroup(
+            title: 'Store & Checkout',
+            icon: Icons.storefront_rounded,
+            entries: [
+              'Store Open',
+              'Customer Registration',
+              'Guest Checkout',
+              'COD',
+              'Online Payments',
+            ],
+            values: widget.data.settings,
+            onChanged: (k, v) => setState(() => widget.data.settings[k] = v),
+          ),
+          _SettingsGroup(
+            title: 'Growth & Loyalty',
+            icon: Icons.trending_up_rounded,
+            entries: [
+              'Reviews',
+              'Referral Program',
+              'Reseller Program',
+              'Affiliate Program',
+              'Coupons',
+              'Loyalty Points',
+              'Customer Wallet',
+            ],
+            values: widget.data.settings,
+            onChanged: (k, v) => setState(() => widget.data.settings[k] = v),
+          ),
+          _SettingsGroup(
+            title: 'System',
+            icon: Icons.tune_rounded,
+            entries: [
+              'Maintenance Mode',
+              'Backup Reminders',
+              'Audit Log',
+            ],
+            values: widget.data.settings,
+            onChanged: (k, v) => setState(() => widget.data.settings[k] = v),
+          ),
+          const SizedBox(height: 12),
+          _ActionGrid(
+            actions: [
+              _ToolAction(
+                'Store Profile',
+                Icons.store_rounded,
+                () => _openSection(
+                  'Store Profile',
+                  Icons.store_rounded,
+                  [],
+                  values: [
+                    'Store Name',
+                    'Business Type',
+                    'Store Mobile',
+                    'Store Email',
+                    'Store Address',
+                    'GSTIN',
+                    'PAN',
+                    'Currency',
+                    'Timezone',
+                  ],
+                ),
+              ),
+              _ToolAction(
+                'Tax / GST',
+                Icons.receipt_long_rounded,
+                () => _openSection(
+                  'Tax / GST',
+                  Icons.receipt_long_rounded,
+                  ['Tax Enabled', 'GST Invoice'],
+                  values: ['Default GST'],
+                ),
+              ),
+              _ToolAction(
+                'Orders',
+                Icons.shopping_bag_rounded,
+                () => _openSection(
+                  'Orders',
+                  Icons.shopping_bag_rounded,
+                  ['Auto Confirm Orders', 'Auto Cancel Unpaid Orders'],
+                  values: [
+                    'Order Prefix',
+                    'Minimum Order',
+                    'Maximum Order',
+                    'Return Window',
+                  ],
+                ),
+              ),
+              _ToolAction(
+                'Payments',
+                Icons.payments_rounded,
+                () => _openSection(
+                  'Payments',
+                  Icons.payments_rounded,
+                  ['COD', 'Online Payments'],
+                  values: ['Razorpay Status'],
+                ),
+              ),
+              _ToolAction(
+                'Delivery',
+                Icons.local_shipping_rounded,
+                () => _openSection(
+                  'Delivery & Shipping',
+                  Icons.local_shipping_rounded,
+                  [],
+                  values: [
+                    'Shipping Charge',
+                    'Free Shipping Above',
+                    'Shiprocket Status',
+                    'Shipmojo Status',
+                  ],
+                ),
+              ),
+              _ToolAction(
+                'POS & Billing',
+                Icons.point_of_sale_rounded,
+                () => _openSection(
+                  'POS & Billing',
+                  Icons.point_of_sale_rounded,
+                  [
+                    'Customer Required for POS',
+                    'Auto Print Invoice',
+                    'Print Duplicate Copy',
+                    'Cash Drawer',
+                    'Hold / Park Sale',
+                  ],
+                  values: ['POS Counter', 'Invoice Prefix'],
+                ),
+              ),
+              _ToolAction(
+                'Printer',
+                Icons.print_rounded,
+                () => _openSection(
+                  'Printer',
+                  Icons.print_rounded,
+                  ['Auto Print Invoice', 'Print Duplicate Copy'],
+                  values: ['Printer Type', 'Paper Size', 'Printer Name'],
+                ),
+              ),
+              _ToolAction(
+                'Barcode Scanner',
+                Icons.qr_code_scanner_rounded,
+                () => _openSection(
+                  'Barcode Scanner',
+                  Icons.qr_code_scanner_rounded,
+                  [
+                    'Barcode Scanner',
+                    'Auto Add Scanned Product',
+                    'Repeated Scan Increases Quantity',
+                  ],
+                  values: [
+                    'Barcode Mode',
+                    'Barcode Format',
+                    'Scanner Sound',
+                    'Scanner Vibration',
+                  ],
+                ),
+              ),
+              _ToolAction(
+                'Inventory',
+                Icons.inventory_2_rounded,
+                () => _openSection(
+                  'Inventory',
+                  Icons.inventory_2_rounded,
+                  [
+                    'Allow Negative Stock',
+                    'Low Stock Alerts',
+                    'Batch Tracking',
+                    'Expiry Tracking',
+                  ],
+                  values: ['Low Stock Threshold'],
+                ),
+              ),
+              _ToolAction(
+                'Customers',
+                Icons.people_alt_rounded,
+                () => _openSection(
+                  'Customers',
+                  Icons.people_alt_rounded,
+                  [
+                    'Customer Registration',
+                    'Customer Wallet',
+                    'Loyalty Points',
+                  ],
+                ),
+              ),
+              _ToolAction(
+                'Vendors',
+                Icons.store_mall_directory_rounded,
+                () => _openSection(
+                  'Vendors',
+                  Icons.store_mall_directory_rounded,
+                  [
+                    'Vendor Registration',
+                    'Vendor Approval Required',
+                    'Vendor Commission',
+                  ],
+                ),
+              ),
+              _ToolAction(
+                'Reseller / Affiliate',
+                Icons.groups_rounded,
+                () => _openSection(
+                  'Reseller / Affiliate',
+                  Icons.groups_rounded,
+                  [
+                    'Reseller Approval Required',
+                    'Affiliate Approval Required',
+                  ],
+                ),
+              ),
+              _ToolAction(
+                'Notifications',
+                Icons.notifications_active_rounded,
+                () => _openSection(
+                  'Notifications',
+                  Icons.notifications_active_rounded,
+                  [
+                    'WhatsApp Notifications',
+                    'Email Notifications',
+                    'Push Notifications',
+                  ],
+                  values: [
+                    'WhatsApp Status',
+                    'Email Status',
+                    'SMS Status',
+                  ],
+                ),
+              ),
+              _ToolAction(
+                'API & Integrations',
+                Icons.api_rounded,
+                () => _openSection(
+                  'API & Integrations',
+                  Icons.api_rounded,
+                  ['API Secret Protection'],
+                  values: [
+                    'Razorpay Status',
+                    'Shiprocket Status',
+                    'Shipmojo Status',
+                    'WhatsApp Status',
+                    'Email Status',
+                    'SMS Status',
+                  ],
+                ),
+              ),
+              _ToolAction(
+                'Security',
+                Icons.security_rounded,
+                () => _openSection(
+                  'Security',
+                  Icons.security_rounded,
+                  [
+                    'Admin Login Alerts',
+                    'Two-factor Authentication',
+                    'Session Timeout',
+                    'Audit Log',
+                    'API Secret Protection',
+                  ],
+                ),
+              ),
+              _ToolAction(
+                'Backup',
+                Icons.backup_rounded,
+                _backupSettings,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
+
 
 // -----------------------------------------------------------------------------
 // SECURITY
