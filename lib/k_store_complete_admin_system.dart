@@ -511,7 +511,30 @@ Future<void> _handleAdminBack() async {
       case 19:
         return SettingsModule(data: data);
       case 20:
-        return PosModule(data: data);
+        return PosModule(
+          data: data,
+          onOrderCreated: (customer, amount, paymentMethod) {
+            final id = KirzOrderNumber.nextFrom(
+              data.orders.map((e) => e.id),
+            );
+
+            final payment = paymentMethod == 'Cash' ||
+                    paymentMethod == 'UPI' ||
+                    paymentMethod == 'Card'
+                ? 'Paid'
+                : 'Pending';
+
+            data.orders.add(
+              OrderAdmin(
+                id,
+                customer,
+                amount,
+                'Processing',
+                payment,
+              ),
+            );
+          },
+        );
       default:
         return DashboardModule(data: data, onOpen: _select);
     }

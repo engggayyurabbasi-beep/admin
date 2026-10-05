@@ -4,9 +4,15 @@ import 'package:flutter/material.dart';
 /// This module is intentionally self-contained and uses local in-memory state.
 /// It is designed to be mounted from the Admin Panel's POS placeholder.
 class PosModule extends StatefulWidget {
-  const PosModule({super.key, required this.data});
+  const PosModule({
+    super.key,
+    required this.data,
+    required this.onOrderCreated,
+  });
 
   final dynamic data;
+  final void Function(String customer, double amount, String payment)
+      onOrderCreated;
 
   @override
   State<PosModule> createState() => _PosModuleState();
@@ -1017,24 +1023,33 @@ class _PosModuleState extends State<PosModule> {
 
   void _completeSale(double total) {
     final invoice = '$_invoicePrefix-${1000 + _sales.length + 1}';
+    final customer = _customerName.trim().isEmpty
+        ? 'Walk-in Customer'
+        : _customerName.trim();
+
     final sale = _PosSale(
       invoice,
-      _customerName.trim().isEmpty ? 'Walk-in Customer' : _customerName.trim(),
+      customer,
       _payment,
       total,
       DateTime.now().toString().split('.').first,
       _cart.map((e) => _PosCartItem(e.product, e.qty)).toList(),
     );
+
     setState(() {
       for (final item in _cart) {
         item.product.stock -= item.qty;
       }
+
       _sales.add(sale);
+
       _cart.clear();
       _discount = 0;
       _taxPercent = 0;
       _cashReceived = 0;
     });
+
+    widget.onOrderCreated(customer, total, _payment);
     _invoiceDialog(sale, completed: true);
   }
 
