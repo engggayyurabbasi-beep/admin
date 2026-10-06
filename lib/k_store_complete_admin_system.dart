@@ -794,7 +794,8 @@ class DashboardModule extends StatelessWidget {
         Color(0xFF607080),
         Color(0xFF1976D2),
           Color(0xFFFF6B00),
-      ][i];
+              Color(0xFF1976D2),
+][i];
 }
 
 // -----------------------------------------------------------------------------
