@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pdf/pdf.dart' as pdf;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -3525,7 +3526,7 @@ class _FinalOrderDetailsPageState extends State<FinalOrderDetailsPage> {
               final doc = pw.Document();
               doc.addPage(
                 pw.Page(
-                  pageFormat: pw.PdfPageFormat.a4,
+                  pageFormat: pdf.PdfPageFormat.a4,
                   build: (pdfContext) => pw.Padding(
                     padding: const pw.EdgeInsets.all(24),
                     child: pw.Column(
@@ -3571,7 +3572,6 @@ class _FinalOrderDetailsPageState extends State<FinalOrderDetailsPage> {
             },
             icon: const Icon(Icons.print_rounded),
             label: const Text('Print'),
-          ),
           ),
         ],
       ),
@@ -16198,7 +16198,7 @@ class _SettingsModuleState extends State<SettingsModule> {
                       final doc = pw.Document();
                       doc.addPage(
                         pw.Page(
-                          pageFormat: pw.PdfPageFormat.a4,
+                          pageFormat: pdf.PdfPageFormat.a4,
                           build: (pdfContext) => pw.Padding(
                             padding: const pw.EdgeInsets.all(24),
                             child: pw.Column(
