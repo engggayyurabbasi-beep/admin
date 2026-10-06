@@ -15935,6 +15935,34 @@ class _SettingsModuleState extends State<SettingsModule> {
     'Razorpay Status': 'Not Connected',
     'Shiprocket Status': 'Not Connected',
     'Shipmojo Status': 'Not Connected',
+    'Place of Supply': '',
+    'Tax Mode': 'Inclusive',
+    'UPI Status': 'Not configured',
+    'Payment Gateway': 'Razorpay',
+    'Refund Window': '7 days',
+    'Delivery Pincode': '',
+    'Printer Connection': 'Not configured',
+    'Scanner Device': 'Not configured',
+    'Stock Valuation Method': 'FIFO',
+    'Default Warehouse': 'Main Warehouse',
+    'Customer Fields': 'Name, Mobile, Email, Address',
+    'Customer Import / Export': 'Available',
+    'Default Customer Group': 'General',
+    'Vendor Commission %': '0',
+    'Vendor Payout Rules': 'Manual',
+    'Default Vendor Group': 'General',
+    'Reseller Commission %': '0',
+    'Affiliate Commission %': '0',
+    'Payout Rules': 'Manual',
+    'Minimum Payout': '0',
+    'Order Notification Events': 'New Order, Payment, Shipment',
+    'Message Templates': 'Default',
+    'Webhook URL': '',
+    'Session Timeout Minutes': '30',
+    'Password Expiry Days': '90',
+    'Admin Roles & Permissions': 'Configure in Staff & Roles',
+    'Login Sessions': 'Active sessions',
+
   };
 
   final Map<String, bool> _defaults = {
@@ -15981,6 +16009,15 @@ class _SettingsModuleState extends State<SettingsModule> {
     'Audit Log': true,
     'API Secret Protection': true,
     'Backup Reminders': true,
+    'Place of Supply': false,
+    'Payment Verification': false,
+    'Refunds': false,
+    'Delivery Tracking': false,
+    'Delivery Charges By Pincode': false,
+    'Scanner Sound': false,
+    'Scanner Vibration': false,
+    'SMS Notifications': false,
+
   };
 
   @override
@@ -16242,8 +16279,16 @@ class _SettingsModuleState extends State<SettingsModule> {
                 () => _openSection(
                   'Tax / GST',
                   Icons.receipt_long_rounded,
-                  ['Tax Enabled', 'GST Invoice'],
-                  values: ['Default GST'],
+                  [
+                    'Tax Enabled',
+                    'GST Invoice',
+                    'Place of Supply',
+                  ],
+                  values: [
+                    'Default GST',
+                    'GSTIN',
+                    'Tax Mode',
+                  ],
                 ),
               ),
               _ToolAction(
@@ -16252,7 +16297,12 @@ class _SettingsModuleState extends State<SettingsModule> {
                 () => _openSection(
                   'Orders',
                   Icons.shopping_bag_rounded,
-                  ['Auto Confirm Orders', 'Auto Cancel Unpaid Orders'],
+                  [
+                    'Auto Confirm Orders',
+                    'Auto Cancel Unpaid Orders',
+                    'COD',
+                    'Online Payments',
+                  ],
                   values: [
                     'Order Prefix',
                     'Minimum Order',
@@ -16267,8 +16317,18 @@ class _SettingsModuleState extends State<SettingsModule> {
                 () => _openSection(
                   'Payments',
                   Icons.payments_rounded,
-                  ['COD', 'Online Payments'],
-                  values: ['Razorpay Status'],
+                  [
+                    'COD',
+                    'Online Payments',
+                    'Payment Verification',
+                    'Refunds',
+                  ],
+                  values: [
+                    'Razorpay Status',
+                    'UPI Status',
+                    'Payment Gateway',
+                    'Refund Window',
+                  ],
                 ),
               ),
               _ToolAction(
@@ -16277,10 +16337,14 @@ class _SettingsModuleState extends State<SettingsModule> {
                 () => _openSection(
                   'Delivery & Shipping',
                   Icons.local_shipping_rounded,
-                  [],
+                  [
+                    'Delivery Tracking',
+                    'Delivery Charges By Pincode',
+                  ],
                   values: [
                     'Shipping Charge',
                     'Free Shipping Above',
+                    'Delivery Pincode',
                     'Shiprocket Status',
                     'Shipmojo Status',
                   ],
@@ -16299,7 +16363,12 @@ class _SettingsModuleState extends State<SettingsModule> {
                     'Cash Drawer',
                     'Hold / Park Sale',
                   ],
-                  values: ['POS Counter', 'Invoice Prefix'],
+                  values: [
+                    'POS Counter',
+                    'Invoice Prefix',
+                    'Paper Size',
+                    'Default Payment',
+                  ],
                 ),
               ),
               _ToolAction(
@@ -16308,8 +16377,16 @@ class _SettingsModuleState extends State<SettingsModule> {
                 () => _openSection(
                   'Printer',
                   Icons.print_rounded,
-                  ['Auto Print Invoice', 'Print Duplicate Copy'],
-                  values: ['Printer Type', 'Paper Size', 'Printer Name'],
+                  [
+                    'Auto Print Invoice',
+                    'Print Duplicate Copy',
+                  ],
+                  values: [
+                    'Printer Type',
+                    'Paper Size',
+                    'Printer Name',
+                    'Printer Connection',
+                  ],
                 ),
               ),
               _ToolAction(
@@ -16322,12 +16399,13 @@ class _SettingsModuleState extends State<SettingsModule> {
                     'Barcode Scanner',
                     'Auto Add Scanned Product',
                     'Repeated Scan Increases Quantity',
+                    'Scanner Sound',
+                    'Scanner Vibration',
                   ],
                   values: [
                     'Barcode Mode',
                     'Barcode Format',
-                    'Scanner Sound',
-                    'Scanner Vibration',
+                    'Scanner Device',
                   ],
                 ),
               ),
@@ -16343,7 +16421,11 @@ class _SettingsModuleState extends State<SettingsModule> {
                     'Batch Tracking',
                     'Expiry Tracking',
                   ],
-                  values: ['Low Stock Threshold'],
+                  values: [
+                    'Low Stock Threshold',
+                    'Stock Valuation Method',
+                    'Default Warehouse',
+                  ],
                 ),
               ),
               _ToolAction(
@@ -16354,8 +16436,15 @@ class _SettingsModuleState extends State<SettingsModule> {
                   Icons.people_alt_rounded,
                   [
                     'Customer Registration',
+                    'Guest Checkout',
                     'Customer Wallet',
                     'Loyalty Points',
+                    'Reviews',
+                  ],
+                  values: [
+                    'Customer Fields',
+                    'Customer Import / Export',
+                    'Default Customer Group',
                   ],
                 ),
               ),
@@ -16370,6 +16459,11 @@ class _SettingsModuleState extends State<SettingsModule> {
                     'Vendor Approval Required',
                     'Vendor Commission',
                   ],
+                  values: [
+                    'Vendor Commission %',
+                    'Vendor Payout Rules',
+                    'Default Vendor Group',
+                  ],
                 ),
               ),
               _ToolAction(
@@ -16379,8 +16473,16 @@ class _SettingsModuleState extends State<SettingsModule> {
                   'Reseller / Affiliate',
                   Icons.groups_rounded,
                   [
+                    'Reseller Program',
                     'Reseller Approval Required',
+                    'Affiliate Program',
                     'Affiliate Approval Required',
+                  ],
+                  values: [
+                    'Reseller Commission %',
+                    'Affiliate Commission %',
+                    'Payout Rules',
+                    'Minimum Payout',
                   ],
                 ),
               ),
@@ -16393,12 +16495,15 @@ class _SettingsModuleState extends State<SettingsModule> {
                   [
                     'WhatsApp Notifications',
                     'Email Notifications',
+                    'SMS Notifications',
                     'Push Notifications',
                   ],
                   values: [
                     'WhatsApp Status',
                     'Email Status',
                     'SMS Status',
+                    'Order Notification Events',
+                    'Message Templates',
                   ],
                 ),
               ),
@@ -16408,7 +16513,9 @@ class _SettingsModuleState extends State<SettingsModule> {
                 () => _openSection(
                   'API & Integrations',
                   Icons.api_rounded,
-                  ['API Secret Protection'],
+                  [
+                    'API Secret Protection',
+                  ],
                   values: [
                     'Razorpay Status',
                     'Shiprocket Status',
@@ -16416,6 +16523,7 @@ class _SettingsModuleState extends State<SettingsModule> {
                     'WhatsApp Status',
                     'Email Status',
                     'SMS Status',
+                    'Webhook URL',
                   ],
                 ),
               ),
@@ -16432,6 +16540,12 @@ class _SettingsModuleState extends State<SettingsModule> {
                     'Audit Log',
                     'API Secret Protection',
                   ],
+                  values: [
+                    'Session Timeout Minutes',
+                    'Password Expiry Days',
+                    'Admin Roles & Permissions',
+                    'Login Sessions',
+                  ],
                 ),
               ),
               _ToolAction(
@@ -16440,7 +16554,7 @@ class _SettingsModuleState extends State<SettingsModule> {
                 _backupSettings,
               ),
             ],
-          ),
+          )
         ],
       ),
     );
