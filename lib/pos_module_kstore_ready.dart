@@ -1751,7 +1751,7 @@ class _PosModuleState extends State<PosModule> {
 
     final matches = _products.where(
       (product) =>
-          product.id.toLowerCase() == code.toLowerCase() ||
+          product.sku.toLowerCase() == code.toLowerCase() ||
           product.name.toLowerCase() == code.toLowerCase(),
     );
 
@@ -1762,15 +1762,14 @@ class _PosModuleState extends State<PosModule> {
 
     final product = matches.first;
     setState(() {
-      final index = _cart.indexWhere((item) => item.product.id == product.id);
+      final index = _cart.indexWhere(
+        (item) => item.product.sku == product.sku,
+      );
       if (index >= 0) {
         final item = _cart[index];
-        _cart[index] = _PosCartItem(
-          product: item.product,
-          quantity: item.quantity + 1,
-        );
+        _cart[index] = _PosCartItem(item.product, item.qty + 1);
       } else {
-        _cart.add(_PosCartItem(product: product, quantity: 1));
+        _cart.add(_PosCartItem(product, 1));
       }
     });
     _toast('${product.name} added to cart.');
