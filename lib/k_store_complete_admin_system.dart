@@ -700,6 +700,7 @@ class DashboardModule extends StatelessWidget {
         'API & Integrations',
         'Staff & Roles',
         'Settings',
+          'Account & Security',
           'POS & Billing',
       ][i];
 
@@ -724,6 +725,7 @@ class DashboardModule extends StatelessWidget {
         'Third Party Services',
         'Manage Staff & Roles',
         'General Settings',
+          'Protect admin access & security',
           'Fast Billing & Invoices',
       ][i];
 
@@ -748,6 +750,7 @@ class DashboardModule extends StatelessWidget {
         Icons.extension_rounded,
         Icons.manage_accounts_rounded,
         Icons.settings_rounded,
+          Icons.security_rounded,
           Icons.point_of_sale_rounded,
       ][i];
 
