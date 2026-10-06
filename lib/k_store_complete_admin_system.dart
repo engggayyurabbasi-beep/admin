@@ -495,7 +495,7 @@ Future<void> _handleAdminBack() async {
   Widget _buildSelectedModule() {
     switch (selected) {
       case 0:
-        return DashboardModule(data: data, onOpen: _select);
+        return AnalyticsDashboardModule(data: data, onOpen: _select);
       case 1:
         return ProductsModule(data: data);
       case 2:
@@ -582,6 +582,994 @@ Future<void> _handleAdminBack() async {
 // -----------------------------------------------------------------------------
 // HOME / DASHBOARD
 // -----------------------------------------------------------------------------
+
+class AnalyticsDashboardModule extends StatelessWidget {
+  const AnalyticsDashboardModule({
+    super.key,
+    required this.data,
+    required this.onOpen,
+  });
+
+  final KStoreAdminData data;
+  final ValueChanged<int> onOpen;
+
+  double get _sales =>
+      data.orders.fold<double>(0, (sum, order) => sum + order.amount);
+
+  int _status(String value) =>
+      data.orders.where((order) => order.status == value).length;
+
+  int get _lowStock =>
+      data.products.where((p) => p.enabled && p.stock > 0 && p.stock <= 10).length;
+
+  int get _outOfStock =>
+      data.products.where((p) => p.stock <= 0).length;
+
+  @override
+  Widget build(BuildContext context) {
+    final recent = data.orders.length > 7
+        ? data.orders.sublist(data.orders.length - 7)
+        : List<OrderAdmin>.from(data.orders);
+
+    final sales = recent.map((o) => o.amount).toList();
+    final status = <String, double>{};
+    for (final order in data.orders) {
+      status[order.status] = (status[order.status] ?? 0) + 1;
+    }
+
+    final payments = <String, double>{};
+    for (final order in data.orders) {
+      payments[order.payment] = (payments[order.payment] ?? 0) + 1;
+    }
+
+    final inventory = <String, double>{
+      'In Stock': data.products.where((p) => p.stock > 10).length.toDouble(),
+      'Low Stock': _lowStock.toDouble(),
+      'Out of Stock': _outOfStock.toDouble(),
+    };
+
+    final partners = <String, double>{
+      'Customers': data.customers.length.toDouble(),
+      'Vendors': data.vendors.length.toDouble(),
+      'Resellers': data.resellers.length.toDouble(),
+      'Affiliates': data.affiliates.length.toDouble(),
+    };
+
+    final customOrders = <String, double>{};
+    for (final order in data.customOrders) {
+      customOrders[order.status] =
+          (customOrders[order.status] ?? 0) + 1;
+    }
+
+    return _Page(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _AnalyticsHeader(
+            title: 'Dashboard',
+            subtitle: 'Business performance at a glance',
+            icon: Icons.dashboard_rounded,
+          ),
+          const SizedBox(height: 12),
+
+          SizedBox(
+            height: 78,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                _AnalyticsKpi(
+                  title: 'Sales',
+                  value: _money(_sales),
+                  icon: Icons.currency_rupee_rounded,
+                  onTap: () => _details(
+                    context,
+                    'Sales Details',
+                    Icons.currency_rupee_rounded,
+                    recent.map((o) => _DetailRowData(
+                      o.id,
+                      '${o.customer} • ${o.status}',
+                      _money(o.amount),
+                    )).toList(),
+                    _money(_sales),
+                  ),
+                ),
+                _AnalyticsKpi(
+                  title: 'Orders',
+                  value: '${data.orders.length}',
+                  icon: Icons.receipt_long_rounded,
+                  onTap: () => _details(
+                    context,
+                    'Order Details',
+                    Icons.receipt_long_rounded,
+                    data.orders.reversed.map((o) => _DetailRowData(
+                      o.id,
+                      '${o.customer} • ${o.payment}',
+                      o.status,
+                    )).toList(),
+                    '${data.orders.length}',
+                  ),
+                ),
+                _AnalyticsKpi(
+                  title: 'Customers',
+                  value: '${data.customers.length}',
+                  icon: Icons.people_alt_rounded,
+                  onTap: () => _details(
+                    context,
+                    'Customer Details',
+                    Icons.people_alt_rounded,
+                    data.customers.map((c) => _DetailRowData(
+                      c.name,
+                      c.email,
+                      c.enabled ? 'Active' : 'Disabled',
+                    )).toList(),
+                    '${data.customers.length}',
+                  ),
+                ),
+                _AnalyticsKpi(
+                  title: 'Low Stock',
+                  value: '$_lowStock',
+                  icon: Icons.warning_amber_rounded,
+                  onTap: () => _inventoryDetails(context),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 700 ? 3 : 2;
+              const gap = 10.0;
+              final width =
+                  (constraints.maxWidth - ((columns - 1) * gap)) / columns;
+              final height = width < 190 ? 180.0 : 194.0;
+
+              return GridView(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: gap,
+                  mainAxisSpacing: gap,
+                  mainAxisExtent: height,
+                ),
+                children: [
+                  _AnalyticsChartCard(
+                    title: 'Sales Trend',
+                    subtitle: 'Recent order sales',
+                    value: _money(_sales),
+                    icon: Icons.show_chart_rounded,
+                    onTap: () => _details(
+                      context,
+                      'Sales Details',
+                      Icons.show_chart_rounded,
+                      recent.reversed.map((o) => _DetailRowData(
+                        o.id,
+                        '${o.customer} • ${o.status}',
+                        _money(o.amount),
+                      )).toList(),
+                      _money(_sales),
+                    ),
+                    child: _AnalyticsLineChart(values: sales),
+                  ),
+                  _AnalyticsChartCard(
+                    title: 'Order Status',
+                    subtitle: 'Status distribution',
+                    value: '${data.orders.length}',
+                    icon: Icons.donut_small_rounded,
+                    onTap: () => _mapDetails(
+                      context,
+                      'Order Status Details',
+                      Icons.donut_small_rounded,
+                      status,
+                    ),
+                    child: _AnalyticsDonut(values: status),
+                  ),
+                  _AnalyticsChartCard(
+                    title: 'Payments',
+                    subtitle: 'Payment method split',
+                    value: '${data.orders.length}',
+                    icon: Icons.payments_rounded,
+                    onTap: () => _mapDetails(
+                      context,
+                      'Payment Details',
+                      Icons.payments_rounded,
+                      payments,
+                    ),
+                    child: _AnalyticsDonut(values: payments),
+                  ),
+                  _AnalyticsChartCard(
+                    title: 'Inventory Health',
+                    subtitle: 'Stock condition',
+                    value: '${data.products.length}',
+                    icon: Icons.warehouse_rounded,
+                    onTap: () => _inventoryDetails(context),
+                    child: _AnalyticsBars(values: inventory),
+                  ),
+                  _AnalyticsChartCard(
+                    title: 'Customer Growth',
+                    subtitle: 'Customers & partners',
+                    value: '${data.customers.length}',
+                    icon: Icons.groups_rounded,
+                    onTap: () => _mapDetails(
+                      context,
+                      'Customer & Partner Details',
+                      Icons.groups_rounded,
+                      partners,
+                    ),
+                    child: _AnalyticsBars(values: partners),
+                  ),
+                  _AnalyticsChartCard(
+                    title: 'Custom Orders',
+                    subtitle: 'Custom order status',
+                    value: '${data.customOrders.length}',
+                    icon: Icons.assignment_rounded,
+                    onTap: () => _mapDetails(
+                      context,
+                      'Custom Order Details',
+                      Icons.assignment_rounded,
+                      customOrders,
+                    ),
+                    child: _AnalyticsDonut(values: customOrders),
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+
+          _AnalyticsAttention(
+            lowStock: _lowStock,
+            outOfStock: _outOfStock,
+            pending: _status('Pending') + _status('Processing'),
+            onTap: () => _inventoryDetails(context),
+          ),
+          const SizedBox(height: 12),
+
+          _AnalyticsQuickActions(onOpen: onOpen),
+        ],
+      ),
+    );
+  }
+
+  String _money(double value) => '₹${value.toStringAsFixed(0)}';
+
+  void _inventoryDetails(BuildContext context) {
+    final products = data.products
+        .where((p) => p.stock <= 10)
+        .toList()
+      ..sort((a, b) => a.stock.compareTo(b.stock));
+
+    _details(
+      context,
+      'Inventory Details',
+      Icons.warehouse_rounded,
+      products.map((p) => _DetailRowData(
+        p.name,
+        p.category,
+        '${p.stock} units',
+      )).toList(),
+      '${data.products.length}',
+      summary: [
+        'In Stock: ${data.products.where((p) => p.stock > 10).length}',
+        'Low Stock: $_lowStock',
+        'Out of Stock: $_outOfStock',
+      ],
+    );
+  }
+
+  void _mapDetails(
+    BuildContext context,
+    String title,
+    IconData icon,
+    Map<String, double> values,
+  ) {
+    _details(
+      context,
+      title,
+      icon,
+      values.entries.map((e) => _DetailRowData(
+        e.key,
+        'Count',
+        e.value.toInt().toString(),
+      )).toList(),
+      values.values.fold<double>(0, (a, b) => a + b).toInt().toString(),
+    );
+  }
+
+  void _details(
+    BuildContext context,
+    String title,
+    IconData icon,
+    List<_DetailRowData> rows,
+    String total, {
+    List<String> summary = const [],
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: .62,
+        minChildSize: .40,
+        maxChildSize: .92,
+        expand: false,
+        builder: (context, controller) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: ListView(
+            controller: controller,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD7DBE2),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Icon(icon, color: const Color(0xFFFF315B), size: 24),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    total,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1976D2),
+                    ),
+                  ),
+                ],
+              ),
+              if (summary.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                ...summary.map(
+                  (s) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Text(
+                      s,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF6C7480),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              if (rows.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 28),
+                  child: Center(
+                    child: Text(
+                      'No detailed data available yet.',
+                      style: TextStyle(color: Color(0xFF6C7480)),
+                    ),
+                  ),
+                )
+              else
+                ...rows.map(
+                  (row) => Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(11),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8F9FC),
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(
+                        color: const Color(0xFFECEEF3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                row.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                row.subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  color: Color(0xFF737A84),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          row.value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1976D2),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailRowData {
+  const _DetailRowData(this.title, this.subtitle, this.value);
+  final String title;
+  final String subtitle;
+  final String value;
+}
+
+class _AnalyticsHeader extends StatelessWidget {
+  const _AnalyticsHeader({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 15, 14, 15),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFF1F6), Color(0xFFF4EEFF)],
+        ),
+        borderRadius: BorderRadius.circular(21),
+        border: Border.all(color: Color(0xFFEFE6F4)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF6C7480),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFF315B), Color(0xFF8E44EC)],
+              ),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(icon, color: Colors.white, size: 32),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnalyticsKpi extends StatelessWidget {
+  const _AnalyticsKpi({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String title;
+  final String value;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 9),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: 145,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Color(0xFFECEEF3)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF0F5),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  icon,
+                  size: 19,
+                  color: const Color(0xFFFF315B),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        color: Color(0xFF6C7480),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AnalyticsChartCard extends StatelessWidget {
+  const _AnalyticsChartCard({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.icon,
+    required this.child,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final String value;
+  final IconData icon;
+  final Widget child;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 9, 10, 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Color(0xFFECEEF3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, size: 19, color: Color(0xFFFF315B)),
+                  const Spacer(),
+                  Icon(
+                    Icons.open_in_new_rounded,
+                    size: 15,
+                    color: Color(0xFF8A9099),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Color(0xFF7B828D),
+                ),
+              ),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1976D2),
+                ),
+              ),
+              Expanded(child: child),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AnalyticsAttention extends StatelessWidget {
+  const _AnalyticsAttention({
+    required this.lowStock,
+    required this.outOfStock,
+    required this.pending,
+    required this.onTap,
+  });
+
+  final int lowStock;
+  final int outOfStock;
+  final int pending;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(17),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(11),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(17),
+          border: Border.all(color: Color(0xFFECEEF3)),
+        ),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 7,
+          children: [
+            const Text(
+              'Attention',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+            ),
+            _attentionChip('Low Stock', '$lowStock'),
+            _attentionChip('Out of Stock', '$outOfStock'),
+            _attentionChip('Pending', '$pending'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _attentionChip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: Color(0xFFF8F9FC),
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Text(
+        '$label: $value',
+        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class _AnalyticsQuickActions extends StatelessWidget {
+  const _AnalyticsQuickActions({required this.onOpen});
+  final ValueChanged<int> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    const actions = [
+      [1, 'Products', Icons.inventory_2_rounded],
+      [3, 'Orders', Icons.receipt_long_rounded],
+      [4, 'Customers', Icons.people_alt_rounded],
+      [13, 'Inventory', Icons.warehouse_rounded],
+      [14, 'Reports', Icons.bar_chart_rounded],
+      [21, 'POS Billing', Icons.point_of_sale_rounded],
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: Color(0xFFECEEF3)),
+      ),
+      child: Wrap(
+        spacing: 7,
+        runSpacing: 7,
+        children: actions.map((item) {
+          return InkWell(
+            onTap: () => onOpen(item[0] as int),
+            borderRadius: BorderRadius.circular(11),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+              decoration: BoxDecoration(
+                color: Color(0xFFF8F9FC),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    item[2] as IconData,
+                    size: 16,
+                    color: Color(0xFF1976D2),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    item[1] as String,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _AnalyticsLineChart extends StatelessWidget {
+  const _AnalyticsLineChart({required this.values});
+  final List<double> values;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _AnalyticsLinePainter(values),
+      child: const SizedBox.expand(),
+    );
+  }
+}
+
+class _AnalyticsLinePainter extends CustomPainter {
+  const _AnalyticsLinePainter(this.values);
+  final List<double> values;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty) return;
+
+    final line = Paint()
+      ..color = Color(0xFFFF315B)
+      ..strokeWidth = 2.4
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final fill = Paint()
+      ..color = Color(0xFFFF315B).withOpacity(.08)
+      ..style = PaintingStyle.fill;
+
+    final max = values.reduce((a, b) => a > b ? a : b);
+    final min = values.reduce((a, b) => a < b ? a : b);
+    final range = (max - min).abs() < 1 ? 1 : max - min;
+
+    final points = <Offset>[];
+    for (var i = 0; i < values.length; i++) {
+      final x = values.length == 1
+          ? size.width / 2
+          : i * size.width / (values.length - 1);
+      final y = size.height - 7 -
+          (((values[i] - min) / range) * (size.height - 15));
+      points.add(Offset(x, y));
+    }
+
+    final path = Path()..moveTo(points.first.dx, points.first.dy);
+    for (final p in points.skip(1)) {
+      path.lineTo(p.dx, p.dy);
+    }
+
+    final fillPath = Path()
+      ..moveTo(points.first.dx, size.height)
+      ..lineTo(points.first.dx, points.first.dy);
+    for (final p in points.skip(1)) {
+      fillPath.lineTo(p.dx, p.dy);
+    }
+    fillPath
+      ..lineTo(points.last.dx, size.height)
+      ..close();
+
+    canvas.drawPath(fillPath, fill);
+    canvas.drawPath(path, line);
+
+    final dot = Paint()..color = Color(0xFFFF315B);
+    for (final p in points) {
+      canvas.drawCircle(p, 2.8, dot);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AnalyticsLinePainter oldDelegate) =>
+      oldDelegate.values != values;
+}
+
+class _AnalyticsDonut extends StatelessWidget {
+  const _AnalyticsDonut({required this.values});
+  final Map<String, double> values;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _AnalyticsDonutPainter(values),
+      child: const SizedBox.expand(),
+    );
+  }
+}
+
+class _AnalyticsDonutPainter extends CustomPainter {
+  const _AnalyticsDonutPainter(this.values);
+  final Map<String, double> values;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final entries = values.entries.where((e) => e.value > 0).toList();
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.shortestSide / 2 - 8;
+
+    if (entries.isEmpty) {
+      final p = Paint()
+        ..color = Color(0xFFE8EBF0)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 10;
+      canvas.drawCircle(center, radius, p);
+      return;
+    }
+
+    const colors = [
+      Color(0xFFFF315B),
+      Color(0xFF8B3DFF),
+      Color(0xFF16C96A),
+      Color(0xFFFF9F0A),
+      Color(0xFF2589E8),
+      Color(0xFF12AFC0),
+    ];
+
+    final total = entries.fold<double>(0, (a, e) => a + e.value);
+    final stroke = radius * .28;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    var start = -1.5707963267948966;
+    for (var i = 0; i < entries.length; i++) {
+      final sweep = (entries[i].value / total) * 6.283185307179586;
+      final p = Paint()
+        ..color = colors[i % colors.length]
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke;
+      canvas.drawArc(rect, start, sweep, false, p);
+      start += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AnalyticsDonutPainter oldDelegate) =>
+      oldDelegate.values != values;
+}
+
+class _AnalyticsBars extends StatelessWidget {
+  const _AnalyticsBars({required this.values});
+  final Map<String, double> values;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _AnalyticsBarsPainter(values),
+      child: const SizedBox.expand(),
+    );
+  }
+}
+
+class _AnalyticsBarsPainter extends CustomPainter {
+  const _AnalyticsBarsPainter(this.values);
+  final Map<String, double> values;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final entries = values.entries.toList();
+    if (entries.isEmpty) return;
+
+    const colors = [
+      Color(0xFF16C96A),
+      Color(0xFFFFB20F),
+      Color(0xFFE91E63),
+      Color(0xFF2589E8),
+    ];
+
+    final max = entries
+        .map((e) => e.value)
+        .fold<double>(0, (a, b) => a > b ? a : b);
+    final safeMax = max <= 0 ? 1 : max;
+    final group = size.width / entries.length;
+    final bar = group * .40;
+
+    for (var i = 0; i < entries.length; i++) {
+      final h = (entries[i].value / safeMax) * (size.height - 8);
+      final left = i * group + (group - bar) / 2;
+      final top = size.height - h;
+
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(left, top, bar, h),
+          Radius.circular(5),
+        ),
+        Paint()..color = colors[i % colors.length],
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AnalyticsBarsPainter oldDelegate) =>
+      oldDelegate.values != values;
+}
 
 class DashboardModule extends StatelessWidget {
   const DashboardModule({super.key, required this.data, required this.onOpen});
