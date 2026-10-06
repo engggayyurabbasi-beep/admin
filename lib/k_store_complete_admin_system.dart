@@ -611,24 +611,44 @@ class DashboardModule extends StatelessWidget {
           const SizedBox(height: 18),
           LayoutBuilder(
             builder: (context, constraints) {
-              final count = 3;
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: 22,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: count,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: count == 3 ? 1.34 : 1.42,
-                ),
-                itemBuilder: (context, index) => _HomeModuleButton(
-                  title: _homeTitle(index),
-                  subtitle: _homeSubtitle(index),
-                  icon: _homeIcon(index),
-                  color: _homeColor(index),
-                  onTap: () => onOpen(index),
-                ),
+              const count = 3;
+              const gap = 10.0;
+              const cardAspectRatio = 1.15;
+              final cardWidth = (constraints.maxWidth - (gap * 2)) / count;
+              final cardHeight = cardWidth / cardAspectRatio;
+              return Column(
+                children: [
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: 21,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: count,
+                      crossAxisSpacing: gap,
+                      mainAxisSpacing: gap,
+                      childAspectRatio: cardAspectRatio,
+                    ),
+                    itemBuilder: (context, index) => _HomeModuleButton(
+                      title: _homeTitle(index),
+                      subtitle: _homeSubtitle(index),
+                      icon: _homeIcon(index),
+                      color: _homeColor(index),
+                      onTap: () => onOpen(index),
+                    ),
+                  ),
+                  const SizedBox(height: gap),
+                  SizedBox(
+                    width: double.infinity,
+                    height: cardHeight,
+                    child: _HomeModuleButton(
+                      title: _homeTitle(21),
+                      subtitle: _homeSubtitle(21),
+                      icon: _homeIcon(21),
+                      color: _homeColor(21),
+                      onTap: () => onOpen(21),
+                    ),
+                  ),
+                ],
               );
             },
           ),
