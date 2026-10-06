@@ -246,6 +246,7 @@ class _KStoreAdminSystemState extends State<KStoreAdminSystem> {
 /// Admin section navigation history.
 /// Android Back एक-एक करके पिछली section पर जाएगा.
 final List<int> _sectionHistory = [0];
+    bool _showAnalyticsDashboard = false;
 
   final modules = const [
     'Dashboard',
@@ -468,34 +469,51 @@ final List<int> _sectionHistory = [0];
     );
   }
 
-  void _select(int index) {
-  if (selected == index) return;
+    void _select(int index) {
+    if (index == 0) {
+      setState(() {
+        selected = 0;
+        _showAnalyticsDashboard = true;
+      });
+      return;
+    }
 
-  setState(() {
-    _sectionHistory.add(index);
-    selected = index;
-  });
-}
-
-Future<void> _handleAdminBack() async {
-  // पहले Admin section history में पीछे जाएँ.
-  if (_sectionHistory.length > 1) {
     setState(() {
-      _sectionHistory.removeLast();
-      selected = _sectionHistory.last;
+      _showAnalyticsDashboard = false;
+      if (selected != index) {
+        _sectionHistory.add(index);
+        selected = index;
+      }
     });
-    return;
   }
 
-  // Home section पर पहुँच चुके हैं.
-  // अब Android app को बंद किया जा सकता है.
-  await SystemNavigator.pop();
-}
+  Future<void> _handleAdminBack() async {
+    if (_showAnalyticsDashboard) {
+      setState(() {
+        _showAnalyticsDashboard = false;
+        selected = 0;
+      });
+      return;
+    }
 
-  Widget _buildSelectedModule() {
+    if (_sectionHistory.length > 1) {
+      setState(() {
+        _sectionHistory.removeLast();
+        selected = _sectionHistory.last;
+      });
+      return;
+    }
+
+    await SystemNavigator.pop();
+  }
+
+Widget _buildSelectedModule() {
     switch (selected) {
       case 0:
-        return AnalyticsDashboardModule(data: data, onOpen: _select);
+        if (_showAnalyticsDashboard) {
+          return AnalyticsDashboardModule(data: data, onOpen: _select);
+        }
+        return DashboardModule(data: data, onOpen: _select);
       case 1:
         return ProductsModule(data: data);
       case 2:
@@ -1578,8 +1596,6 @@ class DashboardModule extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final revenue = data.orders.fold<double>(0, (sum, o) => sum + o.amount);
-
     return _Page(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1589,13 +1605,7 @@ class DashboardModule extends StatelessWidget {
             subtitle: 'Manage your store from one place',
             icon: Icons.storefront_rounded,
           ),
-          const SizedBox(height: 14),
-          _StatsStrip(items: [
-            ['Products', '${data.products.length}', Icons.inventory_2_rounded],
-            ['Orders', '${data.orders.length}', Icons.shopping_bag_rounded],
-            ['Customers', '${data.customers.length}', Icons.people_alt_rounded],
-            ['Revenue', '₹${revenue.toStringAsFixed(0)}', Icons.currency_rupee_rounded],
-          ]),
+
           const SizedBox(height: 18),
           LayoutBuilder(
             builder: (context, constraints) {
