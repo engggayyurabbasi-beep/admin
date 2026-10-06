@@ -394,47 +394,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                                 ),
                               ),
                               const SizedBox(height: 19),
-                              const _OrDivider(),
-                              const SizedBox(height: 16),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 55,
-                                child: OutlinedButton(
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                            'Google Sign-In will be connected with Firebase.'),
-                                        behavior: SnackBarBehavior.floating,
-                                      ),
-                                    );
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: dark,
-                                    side: const BorderSide(
-                                        color: Color(0xFFE0E1E6)),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(15),
-                                    ),
-                                  ),
-                                  child: const Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text('G',
-                                          style: TextStyle(
-                                            fontSize: 27,
-                                            fontWeight: FontWeight.w900,
-                                            color: Color(0xFF4285F4),
-                                          )),
-                                      SizedBox(width: 13),
-                                      Text('Login with Google',
-                                          style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w800)),
-                                    ],
-                                  ),
-                                ),
-                              ),
                             ],
                           ),
                         ),
@@ -792,23 +751,5 @@ class _Field extends StatelessWidget {
             borderSide: const BorderSide(color: Color(0xFFF20B4F), width: 1.5),
           ),
         ),
-      );
-}
-
-class _OrDivider extends StatelessWidget {
-  const _OrDivider();
-
-  @override
-  Widget build(BuildContext context) => const Row(
-        children: [
-          Expanded(child: Divider(color: Color(0xFFE1E2E6))),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 14),
-            child: Text('OR',
-                style: TextStyle(
-                    color: Color(0xFF737985), fontWeight: FontWeight.w700)),
-          ),
-          Expanded(child: Divider(color: Color(0xFFE1E2E6))),
-        ],
       );
 }
