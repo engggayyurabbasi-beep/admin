@@ -613,9 +613,7 @@ class DashboardModule extends StatelessWidget {
             builder: (context, constraints) {
               const count = 3;
               const gap = 10.0;
-              const cardAspectRatio = 1.15;
-              final cardWidth = (constraints.maxWidth - (gap * 2)) / count;
-              final cardHeight = cardWidth / cardAspectRatio;
+              const cardHeight = 145.0;
               return Column(
                 children: [
                   GridView.builder(
@@ -626,7 +624,7 @@ class DashboardModule extends StatelessWidget {
                       crossAxisCount: count,
                       crossAxisSpacing: gap,
                       mainAxisSpacing: gap,
-                      childAspectRatio: cardAspectRatio,
+                      mainAxisExtent: cardHeight,
                     ),
                     itemBuilder: (context, index) => _HomeModuleButton(
                       title: _homeTitle(index),
