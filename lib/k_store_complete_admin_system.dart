@@ -611,7 +611,7 @@ class DashboardModule extends StatelessWidget {
           const SizedBox(height: 18),
           LayoutBuilder(
             builder: (context, constraints) {
-              final count = constraints.maxWidth >= 650 ? 3 : 2;
+              final count = 3;
               return GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
