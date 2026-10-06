@@ -268,8 +268,8 @@ final List<int> _sectionHistory = [0];
     'API & Integrations',
     'Staff & Roles',
     'Settings',
-    'POS & Billing',
-  ];
+    'Account & Security',
+    'POS & Billing',];
 
   final icons = const [
     Icons.home_rounded,
@@ -292,6 +292,7 @@ final List<int> _sectionHistory = [0];
     Icons.extension_rounded,
     Icons.manage_accounts_rounded,
     Icons.settings_rounded,
+    Icons.security_rounded,
     Icons.point_of_sale_rounded,
   ];
 
@@ -534,6 +535,8 @@ Future<void> _handleAdminBack() async {
       case 19:
         return SettingsModule(data: data);
       case 20:
+        return SecurityModule(data: data);
+      case 21:
         return PosModule(
           data: data,
           onOrderCreated: (customer, amount, paymentMethod) {
@@ -16727,7 +16730,7 @@ class _SecurityModuleState extends State<SecurityModule> {
           _ModuleHeader(
             title: 'Account & Security',
             subtitle: 'Protect admin access, sessions, passwords, API secrets and activity',
-            icon: Icons.point_of_sale_rounded,
+            icon: Icons.security_rounded,
             actions: [
               _PrimaryButton(label: 'Security Test', icon: Icons.shield_rounded, onPressed: _securityTest),
             ],
@@ -16739,7 +16742,7 @@ class _SecurityModuleState extends State<SecurityModule> {
           const SizedBox(height: 12),
           _SectionCard(
             title: 'Security Controls',
-            icon: Icons.point_of_sale_rounded,
+            icon: Icons.security_rounded,
             child: Column(
               children: security.entries
                   .map(
