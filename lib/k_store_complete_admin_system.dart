@@ -615,7 +615,7 @@ class DashboardModule extends StatelessWidget {
               return GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: 21,
+                itemCount: 22,
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: count,
                   crossAxisSpacing: 10,
