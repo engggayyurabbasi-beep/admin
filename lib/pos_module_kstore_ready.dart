@@ -366,17 +366,61 @@ class _PosModuleState extends State<PosModule> {
                 onChanged: (v) => _customerPhone = v,
               ),
             ),
-            OutlinedButton.icon(
-              onPressed: _selectCustomer,
-              icon: const Icon(Icons.search),
-              label: const Text('Select Customer'),
-            ),
-            OutlinedButton.icon(
-              onPressed: _addCustomer,
-              icon: const Icon(Icons.person_add_alt_1),
-              label: const Text('Add Customer'),
+            const SizedBox(width: 2),
+            FilledButton.icon(
+              onPressed: _createOrderCustomerDialog,
+              icon: const Icon(Icons.receipt_long_rounded),
+              label: const Text('Create Order'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _createOrderCustomerDialog() {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Create Order',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Select an existing customer or add a new customer for this order.',
+                style: TextStyle(color: Colors.blueGrey),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(sheetContext);
+                  _selectCustomer();
+                },
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Select Customer'),
+              ),
+              const SizedBox(height: 10),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(sheetContext);
+                  _addCustomer();
+                },
+                icon: const Icon(Icons.person_add_alt_1_rounded),
+                label: const Text('Add Customer'),
+              ),
+            ],
+          ),
         ),
       ),
     );
