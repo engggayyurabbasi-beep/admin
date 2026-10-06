@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:pdf/pdf.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'pos_module_kstore_ready.dart';
@@ -85,6 +87,18 @@ class KStoreAdminData {
     'Affiliate Program': true,
     'Maintenance Mode': false,
   };
+  final Map<String, String> config = {
+    'API Base URL': '',
+    'API Secret': '',
+    'Webhook URL': '',
+    'Payment Gateway': 'Razorpay',
+    'Printer Connection': 'Not configured',
+    'Scanner Device': 'Not configured',
+  };
+
+  final List<Map<String, String>> deliveryPincodeRules = [];
+  final List<Map<String, String>> marketingCampaigns = [];
+
 }
 
 class ProductAdmin {
@@ -3506,16 +3520,58 @@ class _FinalOrderDetailsPageState extends State<FinalOrderDetailsPage> {
             child: const Text('Close'),
           ),
           FilledButton.icon(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Invoice preview ready. PDF/print integration can be connected later.'),
+              final doc = pw.Document();
+              doc.addPage(
+                pw.Page(
+                  pageFormat: pw.PdfPageFormat.a4,
+                  build: (pdfContext) => pw.Padding(
+                    padding: const pw.EdgeInsets.all(24),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'K - Store',
+                          style: pw.TextStyle(
+                            fontSize: 22,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 18),
+                        pw.Text(
+                          'INVOICE',
+                          style: pw.TextStyle(
+                            fontSize: 18,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 12),
+                        pw.Text('Order: ${widget.order.id}'),
+                        pw.Text('Customer: ${widget.order.customer}'),
+                        pw.Text('Status: ${widget.order.status}'),
+                        pw.Text('Payment: ${widget.order.payment}'),
+                        pw.Divider(),
+                        pw.Text(
+                          'Total: ₹${widget.order.amount.toStringAsFixed(2)}',
+                          style: pw.TextStyle(
+                            fontSize: 16,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
+              );
+              await Printing.layoutPdf(
+                name: 'Invoice ${widget.order.id}',
+                onLayout: (format) async => doc.save(),
               );
             },
             icon: const Icon(Icons.print_rounded),
             label: const Text('Print'),
+          ),
           ),
         ],
       ),
@@ -16134,10 +16190,51 @@ class _SettingsModuleState extends State<SettingsModule> {
                     subtitle: Text(
                       '${_text('Paper Size')} • ${_text('Printer Type')}',
                     ),
-                    onTap: () {
+                    onTap: () async {
                       Navigator.pop(sheetContext);
-                      _snack(
-                        'Test print command prepared for ${_text('Printer Name')}',
+                      final printerName = _text('Printer Name').trim();
+                      final paperSize = _text('Paper Size').trim();
+                      final printerType = _text('Printer Type').trim();
+                      final doc = pw.Document();
+                      doc.addPage(
+                        pw.Page(
+                          pageFormat: pw.PdfPageFormat.a4,
+                          build: (pdfContext) => pw.Padding(
+                            padding: const pw.EdgeInsets.all(24),
+                            child: pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
+                              children: [
+                                pw.Text(
+                                  'K - Store',
+                                  style: pw.TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: pw.FontWeight.bold,
+                                  ),
+                                ),
+                                pw.SizedBox(height: 16),
+                                pw.Text(
+                                  'PRINTER TEST PAGE',
+                                  style: pw.TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: pw.FontWeight.bold,
+                                  ),
+                                ),
+                                pw.SizedBox(height: 12),
+                                pw.Text('Printer: ${printerName.isEmpty ? 'Not configured' : printerName}'),
+                                pw.Text('Type: ${printerType.isEmpty ? 'Not configured' : printerType}'),
+                                pw.Text('Paper: ${paperSize.isEmpty ? 'Not configured' : paperSize}'),
+                                pw.SizedBox(height: 16),
+                                pw.Text('Test time: ${DateTime.now()}'),
+                                pw.SizedBox(height: 20),
+                                pw.Text('Printer test completed.'),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                      await Printing.layoutPdf(
+                        name: 'K-Store Printer Test',
+                        onLayout: (format) async => doc.save(),
                       );
                     },
                   ),
@@ -16149,7 +16246,43 @@ class _SettingsModuleState extends State<SettingsModule> {
                     subtitle: Text(_text('Barcode Format')),
                     onTap: () {
                       Navigator.pop(sheetContext);
-                      _snack('Barcode scanner test mode ready');
+                      final controller = TextEditingController();
+                      showDialog<void>(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          title: const Text('Scanner Test'),
+                          content: TextField(
+                            controller: controller,
+                            autofocus: true,
+                            decoration: InputDecoration(
+                              labelText: 'Scan / Enter Barcode',
+                              hintText: _text('Barcode Format'),
+                              prefixIcon: const Icon(Icons.qr_code_scanner_rounded),
+                            ),
+                            onSubmitted: (_) {
+                              Navigator.pop(dialogContext);
+                            },
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(dialogContext),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () {
+                                final value = controller.text.trim();
+                                Navigator.pop(dialogContext);
+                                _snack(
+                                  value.isEmpty
+                                      ? 'No barcode entered.'
+                                      : 'Barcode received: $value',
+                                );
+                              },
+                              child: const Text('Test'),
+                            ),
+                          ],
+                        ),
+                      );
                     },
                   ),
               ],

@@ -1706,7 +1706,75 @@ class _PosModuleState extends State<PosModule> {
     );
   }
 
-  void _scanBarcode() => _toast('Barcode scanner integration point ready');
+  void _scanBarcode() {
+    final controller = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Scan / Enter Barcode'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Barcode / SKU',
+            prefixIcon: Icon(Icons.qr_code_scanner_rounded),
+          ),
+          onSubmitted: (_) {
+            final value = controller.text.trim();
+            Navigator.pop(dialogContext);
+            _addBarcodeProduct(value);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              Navigator.pop(dialogContext);
+              _addBarcodeProduct(value);
+            },
+            child: const Text('Add Product'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _addBarcodeProduct(String code) {
+    if (code.isEmpty) {
+      _toast('Enter or scan a barcode/SKU.');
+      return;
+    }
+
+    final matches = _products.where(
+      (product) =>
+          product.id.toLowerCase() == code.toLowerCase() ||
+          product.name.toLowerCase() == code.toLowerCase(),
+    );
+
+    if (matches.isEmpty) {
+      _toast('No product found for barcode/SKU: $code');
+      return;
+    }
+
+    final product = matches.first;
+    setState(() {
+      final index = _cart.indexWhere((item) => item.product.id == product.id);
+      if (index >= 0) {
+        final item = _cart[index];
+        _cart[index] = _PosCartItem(
+          product: item.product,
+          quantity: item.quantity + 1,
+        );
+      } else {
+        _cart.add(_PosCartItem(product: product, quantity: 1));
+      }
+    });
+    _toast('${product.name} added to cart.');
+  }
 
   void _newReturn() {
     final c = TextEditingController();
