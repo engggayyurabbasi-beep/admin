@@ -319,6 +319,7 @@ final List<int> _sectionHistory = [0];
     Color(0xFF607080),
     Color(0xFF1976D2),
     Color(0xFFE83E67),
+      Color(0xFF00A884),
   ];
 
   @override
