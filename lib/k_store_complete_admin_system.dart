@@ -196,6 +196,7 @@ class _KStoreAdminSystemState extends State<KStoreAdminSystem> {
     'Staff & Roles',
     'Settings',
     'Account & Security',
+    'POS & Billing',
   ];
 
   final icons = const [
@@ -220,6 +221,7 @@ class _KStoreAdminSystemState extends State<KStoreAdminSystem> {
     Icons.manage_accounts_rounded,
     Icons.settings_rounded,
     Icons.security_rounded,
+    Icons.point_of_sale_rounded,
   ];
 
   final colors = const [
@@ -440,9 +442,12 @@ class _KStoreAdminSystemState extends State<KStoreAdminSystem> {
         return SettingsModule(data: data);
       case 20:
         return SecurityModule(data: data);
+      case 21:
+        return PosBillingPage();
       default:
         return DashboardModule(data: data, onOpen: _select);
     }
+  }
   }
 
 // -----------------------------------------------------------------------------
@@ -599,7 +604,6 @@ class DashboardModule extends StatelessWidget {
         Color(0xFF1976D2),
       ][i];
   }
-}
 
 // -----------------------------------------------------------------------------
 // PRODUCTS
@@ -3296,4 +3300,434 @@ void _showSnack(BuildContext context, String text) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text(text)),
   );
+}
+
+class PosBillingPage extends StatefulWidget {
+  const PosBillingPage({super.key});
+
+  @override
+  State<PosBillingPage> createState() => _PosBillingPageState();
+}
+
+class _PosBillingPageState extends State<PosBillingPage> {
+  final search = TextEditingController();
+
+  final List<Map<String, dynamic>> products = [
+    {'name': 'Wheat Atta 10kg', 'sku': 'P001', 'price': 499.0, 'stock': 42},
+    {'name': 'Herbal Hair Oil', 'sku': 'P002', 'price': 380.0, 'stock': 18},
+    {'name': 'Slim Trimz Powder', 'sku': 'P003', 'price': 270.0, 'stock': 7},
+  ];
+
+  final List<Map<String, dynamic>> cart = [];
+
+  double get subtotal => cart.fold(
+    0,
+    (sum, item) => sum + (item['price'] as double) * (item['qty'] as int),
+  );
+
+  double get discount => 0;
+  double get gst => 0;
+  double get total => subtotal - discount + gst;
+
+  List<Map<String, dynamic>> get filteredProducts {
+    final q = search.text.trim().toLowerCase();
+
+    if (q.isEmpty) return products;
+
+    return products.where((p) {
+      return p['name'].toString().toLowerCase().contains(q) ||
+          p['sku'].toString().toLowerCase().contains(q);
+    }).toList();
+  }
+
+  void addProduct(Map<String, dynamic> product) {
+    final i = cart.indexWhere((x) => x['sku'] == product['sku']);
+
+    setState(() {
+      if (i >= 0) {
+        cart[i]['qty']++;
+      } else {
+        cart.add({...product, 'qty': 1});
+      }
+    });
+  }
+
+  void qty(int index, int change) {
+    setState(() {
+      cart[index]['qty'] += change;
+
+      if (cart[index]['qty'] <= 0) {
+        cart.removeAt(index);
+      }
+    });
+  }
+
+  void scanBarcode() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Barcode Scanner will open here.')),
+    );
+  }
+
+  void printerSettings() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Printer settings will open here.')),
+    );
+  }
+
+  void createOrder() {
+    if (cart.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add a product first.')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Order Created'),
+        content: Text('Bill Total: ₹${total.toStringAsFixed(0)}'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FC),
+      appBar: AppBar(
+        title: const Text(
+          'POS & Billing',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF111827),
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _searchBar(),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _productsSection(),
+                    const SizedBox(height: 14),
+                    _billSection(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _searchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: search,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Search product / SKU / barcode',
+                prefixIcon: const Icon(Icons.search_rounded),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFFD9DDE5)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFFD9DDE5)),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _actionButton(Icons.qr_code_scanner_rounded, 'Scan', scanBarcode),
+          const SizedBox(width: 8),
+          _actionButton(Icons.print_rounded, 'Printer', printerSettings),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionButton(IconData icon, String label, VoidCallback onTap) {
+    return SizedBox(
+      width: 70,
+      height: 58,
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: Colors.white,
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(13),
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 22),
+            const SizedBox(height: 2),
+            Text(label, style: const TextStyle(fontSize: 11)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _productsSection() {
+    final list = filteredProducts;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4F4),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Products',
+            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 132,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: list.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (_, i) {
+                final p = list[i];
+
+                return InkWell(
+                  onTap: () => addProduct(p),
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    width: 190,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFE0D6D8)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          p['name'],
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        const Spacer(),
+                        Text(
+                          'Stock: ${p['stock']}',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            Text(
+                              '₹${p['price'].toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                color: Color(0xFF9E3E4B),
+                                fontSize: 17,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const Spacer(),
+                            const Icon(
+                              Icons.add_circle_rounded,
+                              color: Color(0xFF9E3E4B),
+                              size: 27,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _billSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4F4),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Text(
+                'Current Bill',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              ),
+              const Spacer(),
+              if (cart.isNotEmpty)
+                TextButton(
+                  onPressed: () => setState(cart.clear),
+                  child: const Text('Clear'),
+                ),
+            ],
+          ),
+          const Divider(),
+
+          if (cart.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Text(
+                'Tap a product above to add it to the bill.',
+                style: TextStyle(color: Colors.grey),
+              ),
+            )
+          else
+            ...List.generate(cart.length, (i) => _cartRow(i)),
+
+          if (cart.isNotEmpty) ...[
+            const Divider(height: 24),
+            _summary('Subtotal', subtotal),
+            _summary('Discount', discount),
+            _summary('GST', gst),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Text(
+                  'Grand Total',
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+                ),
+                const Spacer(),
+                Text(
+                  '₹${total.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // केवल एक मुख्य order button
+            SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: ElevatedButton.icon(
+                onPressed: createOrder,
+                icon: const Icon(Icons.receipt_long_rounded),
+                label: const Text(
+                  'Create Order & Print Bill',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF9E3E4B),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _cartRow(int index) {
+    final item = cart[index];
+    final lineTotal = (item['price'] as double) * (item['qty'] as int);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item['name'],
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  '₹${item['price'].toStringAsFixed(0)}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => qty(index, -1),
+            icon: const Icon(Icons.remove_circle_outline),
+          ),
+          Text(
+            '${item['qty']}',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          IconButton(
+            onPressed: () => qty(index, 1),
+            icon: const Icon(Icons.add_circle_outline),
+          ),
+          SizedBox(
+            width: 70,
+            child: Text(
+              '₹${lineTotal.toStringAsFixed(0)}',
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summary(String label, double value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey)),
+          const Spacer(),
+          Text('₹${value.toStringAsFixed(0)}'),
+        ],
+      ),
+    );
+  }
 }
