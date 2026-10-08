@@ -246,6 +246,7 @@ class _KStoreAdminSystemState extends State<KStoreAdminSystem> {
 /// Admin section navigation history.
 /// Android Back एक-एक करके पिछली section पर जाएगा.
 final List<int> _sectionHistory = [0];
+    bool _showAnalyticsDashboard = false;
 
   final modules = const [
     'Dashboard',
@@ -470,7 +471,16 @@ final List<int> _sectionHistory = [0];
   }
 
     void _select(int index) {
+    if (index == 0) {
+      setState(() {
+        selected = 0;
+        _showAnalyticsDashboard = true;
+      });
+      return;
+    }
+
     setState(() {
+      _showAnalyticsDashboard = false;
       if (selected != index) {
         _sectionHistory.add(index);
       }
@@ -479,6 +489,14 @@ final List<int> _sectionHistory = [0];
   }
 
   Future<void> _handleAdminBack() async {
+    if (_showAnalyticsDashboard) {
+      setState(() {
+        _showAnalyticsDashboard = false;
+        selected = 0;
+      });
+      return;
+    }
+
     if (_sectionHistory.length > 1) {
       setState(() {
         _sectionHistory.removeLast();
@@ -493,7 +511,10 @@ final List<int> _sectionHistory = [0];
 Widget _buildSelectedModule() {
     switch (selected) {
       case 0:
-        return AnalyticsDashboardModule(data: data, onOpen: _select);
+        if (_showAnalyticsDashboard) {
+          return AnalyticsDashboardModule(data: data, onOpen: _select);
+        }
+        return DashboardModule(data: data, onOpen: _select);
       case 1:
         return ProductsModule(data: data);
       case 2:
